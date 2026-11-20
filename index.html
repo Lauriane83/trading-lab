@@ -127,6 +127,11 @@ label.inl{display:flex;margin:0;gap:6px}.acts{white-space:nowrap}.acts button{ma
 #posForm{margin-top:8px}
 [hidden]{display:none!important}
 
+.nbox{margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--panel2);border-left:3px solid var(--line)}.nbox .small{color:var(--muted);margin-top:2px}
+.nbox.down{border-color:var(--down)}.nbox.down b{color:var(--down)}.nbox.up{border-color:var(--up)}.nbox.up b{color:var(--up)}.nbox.warn{border-color:var(--warn)}.nbox.warn b{color:var(--warn)}
+.nsum{background:var(--panel2);padding:10px 12px;border-radius:10px;margin-bottom:8px;display:grid;gap:4px}
+#flowWrap{margin-top:10px}.flowh{justify-content:space-between}.chart.flow{height:130px}#flowInfo{margin:4px 0 0;min-height:1.5em}
+
 .keys label{display:block;margin:12px 0}.keys input{width:100%;max-width:560px;font-family:ui-monospace,monospace}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 button:disabled{opacity:.6;cursor:wait}
@@ -166,6 +171,8 @@ button:disabled{opacity:.6;cursor:wait}
       </div>
       <div id="liveQuote" class="simbar"></div>
       <div class="chartwrap"><div id="liveChart" class="chart"></div><div id="selLayer" hidden><div id="selBox"></div></div></div>
+      <div id="flowWrap"><div class="row wrap flowh"><b>📊 Actions achetées / vendues</b><span id="flowSrc" class="muted small"></span></div>
+      <div id="flowChart" class="chart flow"></div><p id="flowInfo" class="small"></p></div>
       <p class="muted small" id="liveHint">Astuce : clique sur « ✂ Sélectionner un mouvement » puis glisse sur le graphique pour zoomer et analyser cette portion.</p>
       <div id="moveOut" hidden></div>
     </div>
@@ -373,7 +380,7 @@ window.WEB = (() => {
   async function cryptoSeries(sym, interval, size) {
     try { const k = await binance(`/api/v3/klines?symbol=${bpair(sym)}&interval=${BIV[interval] || '1d'}&limit=${Math.min(size, 1000)}`);
       if (!Array.isArray(k) || !k.length) throw 0;
-      return csv(['datetime', 'open', 'high', 'low', 'close', 'volume'], k.reverse().map(x => [interval === '1day' || interval === '1week' ? day(x[0]) : dtUTC(x[0]), x[1], x[2], x[3], x[4], x[5]]));
+      return csv(['datetime', 'open', 'high', 'low', 'close', 'volume', 'buy_volume'], k.reverse().map(x => [interval === '1day' || interval === '1week' ? day(x[0]) : dtUTC(x[0]), x[1], x[2], x[3], x[4], x[5], x[9]]));
     } catch { const id = GECKO[sym.split('/')[0].toUpperCase()]; if (!id) throw err('Crypto introuvable'); const vs = sym.split('/')[1].toLowerCase();
       const o = await getJSON(`https://api.coingecko.com/api/v3/coins/${id}/ohlc?vs_currency=${vs}&days=365`);
       return csv(['datetime', 'open', 'high', 'low', 'close', 'volume'], o.reverse().map(x => [day(x[0]), x[1], x[2], x[3], x[4], 0])); }
@@ -1305,6 +1312,122 @@ function renderAlerts(sym, a) {
   el.querySelectorAll('[data-alre]').forEach(b => b.onclick = () => { const x = S.alerts.find(y => y.id == b.dataset.alre); if (x) { delete x.trig; delete x.ack; saveState(); renderAlerts(sym); renderAlertBar(); } });
 }
 
+// ===== Analyse d'impact des actualités (règles par type d'événement) =====
+// w : effet attendu de -4 (chute forte) à +4 (envolée). Les règles sont testées sur le titre + résumé (anglais et français).
+const NEWS_RULES = [
+  // Dirigeants
+  { re: /\b(ceo|chief executive|founder|chairman|cfo|pdg|directeur général)\b.{0,60}\b(resign\w*|steps? down|stepping down|ousted|fired|departs?|departure|leav(es|ing)|exit\w*|dies|died|death|passed away|démission\w*|quitte|limog\w*|décès|décède)\b/i, g: 'ceo', w: -3, why: 'Départ ou disparition du dirigeant : forte incertitude, les marchés réagissent souvent par une chute nette.' },
+  { re: /\b(resign\w*|steps? down|ousted|fired|démission\w*)\b.{0,40}\b(ceo|chief executive|founder|pdg)\b/i, g: 'ceo', w: -3, why: 'Départ du dirigeant : forte incertitude, chute fréquente.' },
+  { re: /\b(names?|appoints?|nomme|named)\b.{0,40}\b(new )?(ceo|chief executive|pdg)\b/i, w: -1, why: 'Nouveau dirigeant : période d\'incertitude, réaction généralement modérée.' },
+  // Faillite / survie
+  { re: /\b(bankrupt\w*|chapter 11|insolven\w*|going concern|delist\w*|faillite|redressement judiciaire|liquidation)\b/i, w: -4, why: 'Risque de faillite ou de radiation : l\'action peut perdre l\'essentiel de sa valeur.' },
+  // Résultats
+  { re: /\b(beats?|tops|surpass\w*|exceed\w*|crush\w*|dépasse\w*)\b.{0,40}\b(estimates?|expectations?|forecasts?|consensus|attentes)\b/i, w: 2, why: 'Résultats supérieurs aux attentes : hausse fréquente, surtout si les prévisions suivent.' },
+  { re: /\b(miss(es|ed)?|falls? short|below|manque\w*|inférieur\w*)\b.{0,40}\b(estimates?|expectations?|forecasts?|consensus|attentes)\b/i, w: -2, why: 'Résultats sous les attentes : baisse fréquente le jour de la publication.' },
+  { re: /\b(raises?|lifts?|boosts?|hikes?|ups|relève\w*)\b.{0,30}\b(guidance|outlook|forecast|prévisions?|objectifs?)\b/i, w: 3, why: 'Prévisions relevées : c\'est souvent ce qui fait le plus monter une action.' },
+  { re: /\b(cuts?|lowers?|slashes?|reduces?|withdraws?|abaisse\w*|réduit)\b.{0,30}\b(guidance|outlook|forecast|prévisions?|objectifs?)\b|\bprofit warning\b|avertissement sur résultats/i, w: -3, why: 'Prévisions abaissées : signal très négatif, chute forte fréquente.' },
+  { re: /\brecord (revenue|sales|profit|quarter|earnings)\b|chiffre d'affaires record|bénéfice record/i, w: 2, why: 'Résultats record : bonne nouvelle, souvent déjà en partie anticipée.' },
+  // Régulateurs, justice
+  { re: /\bfda\b.{0,40}\b(approv\w*|clears?|grants?)\b|\b(approv\w*|feu vert)\b.{0,20}\bfda\b/i, w: 3, why: 'Feu vert de la FDA : forte hausse possible, surtout pour un laboratoire de taille moyenne.' },
+  { re: /\bfda\b.{0,40}\b(reject\w*|declin\w*|complete response letter|crl|refus\w*)\b/i, w: -4, why: 'Refus de la FDA : chute forte, surtout si le médicament est central.' },
+  { re: /\b(sec|doj|ftc|department of justice|regulators?|antitrust|competition authority|commission européenne|autorité de la concurrence)\b.{0,50}\b(sues?|charges?|probe|investigat\w*|fines?|penalt\w*|enquête|amende)\b|\b(probe|investigation|enquête)\b.{0,30}\b(into|on|sur)\b/i, w: -2, why: 'Enquête ou poursuite des autorités : pression baissière, amende possible.' },
+  { re: /\b(class action|lawsuit|sued|sues|procès|plainte)\b/i, w: -1, why: 'Procès : impact souvent limité, sauf si les montants sont importants.' },
+  { re: /\b(fraud|accounting irregularit\w*|restat\w*|short seller report|fraude)\b/i, w: -4, why: 'Soupçon de fraude ou de comptes faux : chute brutale fréquente.' },
+  // Géopolitique / commerce
+  { re: /\b(export (ban|curbs?|controls?|restrictions?)|tariffs?|sanctions?|ban\w*)\b.{0,50}\b(china|chips?|semiconductor\w*|chine|puces?)\b|\b(china|chine)\b.{0,40}\b(bans?|restrict\w*|interdit\w*)\b/i, w: -3, why: 'Restrictions commerciales (Chine, puces) : chute possible pour les entreprises exposées (Nvidia, AMD…).' },
+  { re: /\b(tariffs?|droits de douane)\b/i, w: -1, why: 'Droits de douane : pression sur les marges, impact variable selon l\'exposition.' },
+  // Fusions
+  { re: /\b(to be acquired|agrees? to be (bought|acquired)|takeover (bid|offer)|buyout|tender offer|offre publique|rachetée? par)\b/i, w: 4, why: 'L\'entreprise est rachetée : le cours monte vers le prix offert, souvent +20 % ou plus.' },
+  { re: /\b(to acquire|acquires|agrees? to buy|will buy|rachète|acquiert)\b/i, w: -1, why: 'L\'entreprise rachète une autre société : l\'acheteur baisse souvent un peu (coût, risque).' },
+  { re: /\b(merger|fusion)\b/i, w: 1, why: 'Fusion annoncée : réaction variable selon les conditions.' },
+  // Capital
+  { re: /\b(buyback|share repurchase|rachat d'actions)\b/i, w: 1, why: 'Rachat d\'actions : soutien modéré du cours.' },
+  { re: /\b(dividend (hike|increase|raise)|raises? (its )?dividend|hausse du dividende)\b/i, w: 1, why: 'Dividende en hausse : signe de confiance, effet modéré.' },
+  { re: /\b(dividend cut|suspends? (its )?dividend|cuts? (its )?dividend|baisse du dividende|suppression du dividende)\b/i, w: -3, why: 'Dividende coupé : mauvais signal, chute fréquente.' },
+  { re: /\b(stock split|share split|division (de l'|du nominal))\b/i, w: 1, why: 'Division d\'actions : rend l\'action plus accessible, hausse modérée fréquente.' },
+  { re: /\b(share offering|secondary offering|dilut\w*|augmentation de capital|convertible notes?)\b/i, w: -2, why: 'Émission d\'actions nouvelles : dilution, baisse fréquente.' },
+  // Analystes
+  { re: /\bupgrade[sd]?\b|relève (sa|la) recommandation|passe à l'achat/i, w: 1, why: 'Relèvement par un analyste : hausse modérée en général.' },
+  { re: /\bdowngrade[sd]?\b|abaisse (sa|la) recommandation|passe à la vente/i, w: -1, why: 'Dégradation par un analyste : baisse modérée en général.' },
+  { re: /\b(price target)\b.{0,30}\b(raised|hikes?|lifts?|to \$?\d)/i, w: 1, why: 'Objectif de cours relevé : effet modéré.' },
+  // Opérations
+  { re: /\b(recall\w*|rappel de)\b/i, w: -2, why: 'Rappel de produits : coût et image, baisse modérée à forte.' },
+  { re: /\b(data breach|hack(ed|ers?)?|cyberattack|outage|panne|cyberattaque|fuite de données)\b/i, w: -2, why: 'Cyberattaque ou panne : baisse modérée, plus forte si clients touchés.' },
+  { re: /\b(layoffs?|job cuts|cuts? \d[\d,]* jobs|licenciements?|suppressions? de postes)\b/i, w: 0, why: 'Licenciements : souvent bien accueillis (économies), sauf s\'ils trahissent des difficultés.' },
+  { re: /\b(wins?|awarded|secures?|lands?|décroche|remporte)\b.{0,40}\b(contract|deal|order|contrat|commande)\b/i, w: 2, why: 'Gros contrat remporté : hausse modérée, forte si le montant est élevé par rapport à la taille de l\'entreprise.' },
+  { re: /\b(partnership|partners with|collaboration|partenariat)\b/i, w: 1, why: 'Partenariat : effet souvent modéré, fort si le partenaire est un géant.' },
+  { re: /\b(launch\w*|unveils?|introduces?|lance|dévoile)\b/i, w: 0, why: 'Lancement de produit : impact généralement faible, sauf produit phare.' },
+  // Mouvements déjà en cours
+  { re: /\b(soar\w*|surg\w*|skyrocket\w*|jumps?|rall(y|ies)|s'envole|bondit|flambe)\b/i, w: 1, why: 'Le titre est déjà en forte hausse : attention, une partie du mouvement est peut-être déjà faite.' },
+  { re: /\b(plunge\w*|plummet\w*|tumbl\w*|crash\w*|sinks?|slump\w*|s'effondre|chute|dégringole)\b/i, w: -1, why: 'Le titre est déjà en forte baisse : le mouvement est peut-être déjà largement fait.' },
+  // Macro & crypto
+  { re: /\b(rate cut|cuts? (interest )?rates|baisse des taux)\b/i, w: 1, why: 'Baisse des taux : favorable aux actions de croissance et aux cryptos.' },
+  { re: /\b(rate hike|raises? (interest )?rates|hausse des taux|hotter.than.expected inflation|inflation (surges?|accelerat\w*))\b/i, w: -2, why: 'Hausse des taux ou inflation forte : pression sur les actions de croissance et les cryptos.' },
+  { re: /\b(etf)\b.{0,40}\b(approv\w*|inflows?|launch\w*)\b/i, w: 2, why: 'ETF crypto approuvé ou entrées de capitaux : hausse fréquente.' },
+  { re: /\b(etf)\b.{0,40}\b(outflows?|reject\w*)\b/i, w: -2, why: 'Sorties de capitaux des ETF ou refus : pression baissière.' },
+  { re: /\b(exchange|plateforme)\b.{0,40}\b(hack\w*|collapse\w*|halts? withdrawals|insolven\w*)\b/i, w: -3, why: 'Piratage ou effondrement d\'une plateforme crypto : forte baisse de tout le marché possible.' },
+  { re: /\b(halving)\b/i, w: 1, why: 'Halving du Bitcoin : historiquement haussier à moyen terme.' },
+  { re: /\b(earnings|results|quarter(ly)?|résultats|trimestre)\b/i, w: 0, why: 'Publication de résultats : les mouvements de 5 à 10 % sont courants dans les deux sens.', vol: true },
+];
+function newsImpact(n) {
+  const t = (n.title || '') + ' ' + (n.body || '');
+  let s = 0, why = [], vol = false, hits = 0;
+  const seen = new Set();
+  for (const r of NEWS_RULES) if (r.re.test(t)) { if (r.g) { if (seen.has(r.g)) continue; seen.add(r.g); } s += r.w; hits++; if (r.vol) vol = true; if (why.length < 2) why.push(r.why); }
+  s = Math.max(-4, Math.min(4, s));
+  let lab, cl, ico;
+  if (s <= -3) { lab = 'Forte baisse possible'; cl = 'down'; ico = '📉'; }
+  else if (s <= -1) { lab = 'Baisse modérée possible'; cl = 'down'; ico = '↘'; }
+  else if (s >= 3) { lab = 'Forte hausse possible'; cl = 'up'; ico = '📈'; }
+  else if (s >= 1) { lab = 'Hausse modérée possible'; cl = 'up'; ico = '↗'; }
+  else if (vol) { lab = 'Volatilité attendue (sens incertain)'; cl = 'warn'; ico = '↕'; }
+  else { lab = 'Pas de forte variation attendue'; cl = 'muted'; ico = '➖'; }
+  if (!why.length) why.push('Aucun événement à fort impact identifié dans cette actualité.');
+  return { s, lab, cl, ico, why, hot: hits > 0 && (s !== 0 || vol) };
+}
+function newsSummaryHTML(list, sym) {
+  if (!list.length) return '';
+  const imp = list.map(newsImpact), neg = imp.filter(x => x.s <= -3).length, pos = imp.filter(x => x.s >= 3).length, mn = imp.filter(x => x.s < 0 && x.s > -3).length, mp = imp.filter(x => x.s > 0 && x.s < 3).length;
+  const tot = imp.reduce((a, x) => a + x.s, 0);
+  const q = quoteMem[normSym(sym)];
+  const verdict = tot <= -4 ? ['Pression baissière forte dans l\'actualité', 'down'] : tot <= -1 ? ['Actualité plutôt négative', 'down'] : tot >= 4 ? ['Actualité très favorable', 'up'] : tot >= 1 ? ['Actualité plutôt positive', 'up'] : ['Actualité neutre', 'muted'];
+  return `<div class="nsum"><div class="row wrap" style="justify-content:space-between"><b class="${verdict[1]}">${verdict[0]}</b>${q ? `<span class="small">Cours aujourd'hui : <b class="${cls(q.dp)}">${sgn(q.dp)} %</b></span>` : ''}</div>
+    <div class="small muted">${list.length} actualité(s) analysée(s) · 📉 ${neg} forte(s) baisse(s) possible(s) · ↘ ${mn} · ↗ ${mp} · 📈 ${pos} forte(s) hausse(s) possible(s)</div></div>`;
+}
+
+// ===== Achats / ventes (volume) synchronisés avec le graphique en direct =====
+let flowChart = null, flowPts = [], flowReal = false, flowRange = null;
+const fmtVol = v => v >= 1e9 ? fmt(v / 1e9, 2) + ' Md' : v >= 1e6 ? fmt(v / 1e6, 2) + ' M' : v >= 1e3 ? fmt(v / 1e3, 1) + ' k' : fmt(v, v < 10 ? 3 : 0);
+function flowSummary(r) {
+  if (!flowPts.length || !r) return;
+  const i1 = Math.max(0, Math.floor(r.from)), i2 = Math.min(flowPts.length - 1, Math.ceil(r.to)); let B = 0, V = 0;
+  for (let i = i1; i <= i2; i++) { B += flowPts[i].b; V += flowPts[i].s; }
+  const pct = B + V ? B / (B + V) * 100 : 50, lab = pct > 55 ? ['pression acheteuse', 'up'] : pct < 45 ? ['pression vendeuse', 'down'] : ['équilibre acheteurs / vendeurs', 'muted'];
+  $('#flowInfo').innerHTML = `Période affichée : <b class="up">${fmtVol(B)} achetées</b> · <b class="down">${fmtVol(V)} vendues</b> → <b class="${lab[1]}">${lab[0]}</b> (${fmt(pct, 0)} % d'achats)`;
+}
+function drawFlow(c) {
+  if (flowChart) { try { flowChart.remove(); } catch {} flowChart = null; }
+  $('#flowChart').innerHTML = '';
+  flowPts = []; flowReal = c.some(x => x.buy != null);
+  if (!c.some(x => x.volume > 0)) { $('#flowSrc').textContent = ''; $('#flowInfo').textContent = 'Volume non disponible pour cet actif avec la source actuelle.'; $('#flowChart').hidden = true; return; }
+  $('#flowChart').hidden = false;
+  flowPts = c.map(x => { let b; if (x.buy != null) b = x.buy; else { const r = x.high - x.low; b = r > 0 ? x.volume * (x.close - x.low) / r : x.volume / 2; } return { t: x.time, b, s: Math.max(0, x.volume - b), p: x.close }; });
+  $('#flowSrc').textContent = flowReal ? 'données réelles (Binance)' : 'estimation à partir de chaque bougie (pas de données acheteurs/vendeurs gratuites pour les actions)';
+  flowChart = LightweightCharts.createChart($('#flowChart'), { ...chartOpts, timeScale: { visible: false }, handleScroll: false, handleScale: false });
+  const hb = flowChart.addHistogramSeries({ color: 'rgba(34,197,94,.8)', priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false });
+  const hs = flowChart.addHistogramSeries({ color: 'rgba(239,68,68,.8)', priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false });
+  hb.setData(flowPts.map(x => ({ time: x.t, value: x.b }))); hs.setData(flowPts.map(x => ({ time: x.t, value: -x.s })));
+  const ts = liveChart.timeScale();
+  const sync = r => { if (!r || !flowChart) return; flowRange = r; flowChart.timeScale().setVisibleLogicalRange(r); flowSummary(r); };
+  ts.subscribeVisibleLogicalRangeChange(sync); sync(ts.getVisibleLogicalRange());
+  liveChart.subscribeCrosshairMove(param => {
+    if (!param || param.time == null) return flowSummary(flowRange);
+    const pt = flowPts.find(x => x.t === param.time); if (!pt) return;
+    const tot = pt.b + pt.s;
+    $('#flowInfo').innerHTML = `${fmtT(pt.t)} · prix <b>${fmt(pt.p)}</b> · <b class="up">${fmtVol(pt.b)} achetées</b> · <b class="down">${fmtVol(pt.s)} vendues</b> (${fmt(tot ? pt.b / tot * 100 : 50, 0)} % d'achats)`;
+  });
+}
+
 // ================== Utilitaires ==================
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const ls = {
@@ -1447,7 +1570,7 @@ async function getCandles(sym, interval = '1day', size = 400, prio = 1) {
   if (interval === '1day' && !normSym(sym).includes('@') && fmpOk()) { try { const d = await fmpCandles(sym, size); if (d.length > 30) return d; } catch {} }
   const t = await td('get_time_series', { ...parseSym(sym), interval, outputsize: size }, DAILY(interval) ? 3 * 3600e3 : 50e3, prio);
   const d = parseCSV(t).map(v => ({ time: DAILY(interval) ? v.datetime.slice(0, 10) : Math.floor(Date.parse(v.datetime.replace(' ', 'T') + 'Z') / 1000),
-    open: +v.open, high: +v.high, low: +v.low, close: +v.close, volume: +(v.volume || 0) })).reverse();
+    open: +v.open, high: +v.high, low: +v.low, close: +v.close, volume: +(v.volume || 0), buy: v.buy_volume != null && v.buy_volume !== '' ? +v.buy_volume : undefined })).reverse();
   if (!d.length) throw new Error('Aucune donnée pour ' + showSym(sym)); return d;
 }
 const quoteMem = {};
@@ -1520,6 +1643,7 @@ async function loadLive(keepView) {
     liveChart.addLineSeries({ color: '#f59e0b', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(lineOf(TA.ema(cl, 20), c));
     liveChart.addLineSeries({ color: '#3b82f6', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(lineOf(TA.sma(cl, 50), c));
     if (range) liveChart.timeScale().setVisibleLogicalRange(range); else liveChart.timeScale().setVisibleLogicalRange({ from: c.length - 120, to: c.length + 2 });
+    drawFlow(c);
     $('#liveQuote').innerHTML = `<div class="lq">${logo(sym, 26)}<b>${esc(q.name || nameOf(sym) || sym)}</b> <span class="muted">${esc(showSym(sym))} · ${esc(q.ex || '')}</span></div><div><span class="muted">Prix</span> <b class="lp">${fmt(q.p)} ${esc(q.cur || '')}</b></div>
       <div><span class="muted">Jour</span> <b class="ld ${cls(q.dp)}">${sgn(q.d)} (${sgn(q.dp)} %)</b></div>` +
       (q.hi52 ? `<div><span class="muted">52 sem.</span> <b>${fmt(q.lo52)} – ${fmt(q.hi52)}</b></div>` : '') +
@@ -1630,7 +1754,7 @@ const IMPACT = [
   [/\b(miss(es|ed)?|cuts? (guidance|outlook|forecast)|lowers? (guidance|outlook)|downgrade[sd]?|lawsuit|class action|probe|investigation|sec charges|recall|layoffs?|job cuts|bankrupt\w*|plunge\w*|tumbles?|slump\w*|sinks?|warning|fraud|antitrust|tariffs?)\b/i, -1],
   [/\b(earnings|results|quarter(ly)?|guidance|merger|acquir\w*|acquisition|takeover|ipo|fda|federal reserve|fed|rate (cut|hike)|inflation|cpi|jobs report|split)\b/i, 0],
 ];
-function impactOf(n) { const t = n.title + ' ' + n.body; let s = 0, hot = false; for (const [re, w] of IMPACT) if (re.test(t)) { if (w) s += w; else hot = true; } return { s, hot: hot || s !== 0 }; }
+function impactOf(n) { const r = newsImpact(n); return { s: r.s, hot: r.hot }; }
 const cleanMd = s => String(s || '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[_*#>`]/g, '').replace(/\s*…?\s*\[trimmed\]/, '…');
 let newsSym = S.favs[0] || 'AAPL', newsTab = 'impact'; const newsMem = {};
 function renderNewsSyms() {
@@ -1641,10 +1765,11 @@ $('#newsSyms').addEventListener('click', e => { const b = e.target.closest('.chi
 attachSearch($('#newsSearch'), code => { newsSym = code; $('#newsSearch').value = ''; renderNewsSyms(); renderNews(); });
 $('#newsTabs').addEventListener('click', e => { const t = e.target.dataset.t; if (!t) return; newsTab = t;
   $$('#newsTabs button').forEach(b => b.classList.toggle('active', b.dataset.t === t)); $('#newsSyms').hidden = $('#newsSearch').parentElement.hidden = t === 'ipo'; renderNews(); });
-function newsItem(n) { const im = impactOf(n);
+function newsItem(n) { const im = newsImpact(n);
   const tags = (im.s > 0 ? '<span class="tag pos">▲ positif</span>' : im.s < 0 ? '<span class="tag neg">▼ négatif</span>' : '') + (im.hot ? '<span class="tag hot">⚡ impact potentiel</span>' : '');
   return `<div class="news-item"><div class="small muted">${tags} ${esc(n.source)} · ${new Date(n.date).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}</div>
-   ${n.url ? `<a href="${esc(n.url)}" target="_blank" rel="noopener"><b>${esc(n.title)}</b></a>` : `<b>${esc(n.title)}</b>`}<div class="small muted">${esc(n.body.slice(0, 260))}${n.body.length > 260 ? '…' : ''}</div></div>`; }
+   ${n.url ? `<a href="${esc(n.url)}" target="_blank" rel="noopener"><b>${esc(n.title)}</b></a>` : `<b>${esc(n.title)}</b>`}<div class="small muted">${esc(n.body.slice(0, 260))}${n.body.length > 260 ? '…' : ''}</div>
+   <div class="nbox ${im.cl}"><b>${im.ico} ${im.lab}</b><div class="small">${im.why.map(esc).join(' ')}</div></div></div>`; }
 async function renderNews() {
   const el = $('#news');
   if (newsTab === 'ipo' && window.WEB) return renderIPOWeb(el);
@@ -1664,7 +1789,7 @@ async function renderNews() {
     if (sym !== newsSym) return;
   }
   const all = newsMem[sym], list = newsTab === 'impact' ? all.filter(n => impactOf(n).hot) : all;
-  el.innerHTML = `<p class="small muted">${all.length} actualité(s) récente(s) pour <b>${esc(showSym(sym))}</b>${newsTab === 'impact' ? `, dont ${list.length} à impact potentiel` : ''}.</p>` +
+  el.innerHTML = newsSummaryHTML(all, sym) + `<p class="small muted">${all.length} actualité(s) récente(s) pour <b>${esc(showSym(sym))}</b>${newsTab === 'impact' ? `, dont ${list.length} à impact potentiel` : ''}.</p>` +
     (list.length ? list.map(newsItem).join('') : `<p class="muted">Aucune actualité à fort impact pour ${esc(showSym(sym))} en ce moment. Regarde l'onglet « Toutes ».</p>`);
 }
 
