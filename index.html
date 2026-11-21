@@ -132,6 +132,16 @@ label.inl{display:flex;margin:0;gap:6px}.acts{white-space:nowrap}.acts button{ma
 .nsum{background:var(--panel2);padding:10px 12px;border-radius:10px;margin-bottom:8px;display:grid;gap:4px}
 #flowWrap{margin-top:10px}.flowh{justify-content:space-between}.chart.flow{height:130px}#flowInfo{margin:4px 0 0;min-height:1.5em}
 
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin:6px 0 4px;font-size:12px;color:var(--muted)}.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{display:inline-block;width:18px;flex:none}.lg-line{height:3px;background:var(--c);border-radius:2px}.lg-dash{height:0;border-top:2px dashed var(--c)}
+.lg-dot{height:0;border-top:2px dotted var(--c)}.lg-bar{width:10px!important;height:12px;background:var(--c);border-radius:2px}.lg-area{height:10px;background:linear-gradient(var(--c),transparent);border-top:2px solid var(--c)}
+.fc-grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:16px}@media(max-width:900px){.fc-grid{grid-template-columns:1fr}}
+.fcvs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}.fcv{background:var(--panel);border-radius:8px;padding:8px;display:grid}.fcv span{font-size:11px;color:var(--muted)}.fcv b{font-size:17px}
+.gauge{width:180px;height:auto}.eps{width:320px;max-width:100%;height:auto}
+.pbar{height:6px;background:var(--line);border-radius:4px;width:90px;overflow:hidden}.pbar i{display:block;height:100%;background:var(--muted)}.pbar i.down{background:var(--down)}.pbar i.warn{background:var(--warn)}
+tr.why td{border-bottom:1px solid var(--line);padding-top:0}.tbl2 tr:has(+ tr.why) td{border-bottom:0}
+#movers .sech{display:flex;align-items:center}
+
 .keys label{display:block;margin:12px 0}.keys input{width:100%;max-width:560px;font-family:ui-monospace,monospace}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 button:disabled{opacity:.6;cursor:wait}
@@ -171,8 +181,9 @@ button:disabled{opacity:.6;cursor:wait}
       </div>
       <div id="liveQuote" class="simbar"></div>
       <div class="chartwrap"><div id="liveChart" class="chart"></div><div id="selLayer" hidden><div id="selBox"></div></div></div>
+      <div id="liveLegend"></div>
       <div id="flowWrap"><div class="row wrap flowh"><b>📊 Actions achetées / vendues</b><span id="flowSrc" class="muted small"></span></div>
-      <div id="flowChart" class="chart flow"></div><p id="flowInfo" class="small"></p></div>
+      <div id="flowChart" class="chart flow"></div><div id="flowLegend"></div><p id="flowInfo" class="small"></p></div>
       <p class="muted small" id="liveHint">Astuce : clique sur « ✂ Sélectionner un mouvement » puis glisse sur le graphique pour zoomer et analyser cette portion.</p>
       <div id="moveOut" hidden></div>
     </div>
@@ -184,6 +195,7 @@ button:disabled{opacity:.6;cursor:wait}
       <div class="row wrap" id="newsSyms"></div>
       <div class="search" style="margin:8px 0"><input id="newsSearch" placeholder="Actualités d'une autre action…" autocomplete="off" aria-label="Rechercher les actualités d'une action"><div class="sres" hidden></div></div>
       <div id="news" class="scroll"></div>
+      <div id="movers" class="panel" style="margin-top:12px"></div>
     </div>
 
     <div class="card">
@@ -205,6 +217,7 @@ button:disabled{opacity:.6;cursor:wait}
       <div id="favList" class="favlist"></div>
       <div id="analysis"></div>
       <div class="two favx"><div id="myPos" class="panel"></div><div id="alertBox" class="panel"></div></div>
+      <div id="fcBox" class="panel" style="margin-top:16px"></div>
     </div>
   </div>
 </section>
@@ -255,6 +268,7 @@ button:disabled{opacity:.6;cursor:wait}
       </div>
       <div id="simChart" class="chart"></div>
       <div id="simRsi" class="chart small"></div>
+      <div class="legend"><span><i class="lg-bar" style="--c:#22c55e"></i>Bougie haussière</span><span><i class="lg-bar" style="--c:#ef4444"></i>Bougie baissière</span><span><i class="lg-line" style="--c:#f59e0b"></i>MM20</span><span><i class="lg-line" style="--c:#3b82f6"></i>MM50</span><span><i class="lg-line" style="--c:#8b5cf6"></i>MM200</span><span><i class="lg-dash" style="--c:#8b97ad"></i>Bandes de Bollinger</span><span><i class="lg-line" style="--c:#e6ebf5"></i>RSI 14</span><span>▲ A = achat · ▼ V = vente</span></div>
       <div class="row wrap simctl">
         <button data-step="1">+1 jour</button>
         <button data-step="5">+1 semaine</button>
@@ -300,7 +314,7 @@ button:disabled{opacity:.6;cursor:wait}
       <p class="muted small">Les prix suivent le marché en temps réel (actualisation toutes les 2 minutes quand cette page est ouverte). <span id="pfStore"></span></p>
     </div>
     <div class="card"><div class="card-h"><h2>Répartition</h2></div><div id="pfDonut"></div></div>
-    <div class="card"><div class="card-h"><h2>Évolution</h2></div><div id="pfHist" class="chart small2"></div><p class="muted small">Valeur du portefeuille, un point par jour.</p></div>
+    <div class="card"><div class="card-h"><h2>Évolution</h2></div><div id="pfHist" class="chart small2"></div><div id="pfLegend"></div><p class="muted small">Valeur du portefeuille, un point par jour.</p></div>
   </div>
 </section>
 
@@ -1253,8 +1267,10 @@ function renderMyPos(sym, c, a) {
     ${rec.levels.length ? `<table class="tbl2">${rec.levels.map(([k, v]) => `<tr><td>${k}</td><td><b>${v}</b></td></tr>`).join('')}</table>` : ''}
     <h3 class="sech">Par horizon</h3><table class="tbl2"><tr><th>Horizon</th><th>Tendance</th><th>Pourquoi</th></tr>${hz.map(([n, d, sc, w]) => { const [lab, cl] = hzLabel(sc);
       return `<tr><td><b>${n}</b><br><small class="muted">${d}</small></td><td class="${cl}"><b>${lab}</b></td><td class="small">${w.join(' · ')}</td></tr>`; }).join('')}</table>
+    <h3 class="sech">📆 Projection long terme (2, 3 et 4 ans)</h3><div id="ltBox"><p class="muted small">Chargement de 5 ans d'historique…</p></div>
     <p class="muted small">Conseils automatiques basés sur l'analyse technique et ta position. Pas un conseil en investissement.</p>`;
   el.innerHTML = h;
+  renderLongTerm(sym, a.P, pos);
   let mode = null; const form = $('#posForm');
   el.querySelectorAll('[data-pa]').forEach(b => b.onclick = () => {
     const pa = b.dataset.pa;
@@ -1409,8 +1425,9 @@ function drawFlow(c) {
   if (flowChart) { try { flowChart.remove(); } catch {} flowChart = null; }
   $('#flowChart').innerHTML = '';
   flowPts = []; flowReal = c.some(x => x.buy != null);
-  if (!c.some(x => x.volume > 0)) { $('#flowSrc').textContent = ''; $('#flowInfo').textContent = 'Volume non disponible pour cet actif avec la source actuelle.'; $('#flowChart').hidden = true; return; }
+  if (!c.some(x => x.volume > 0)) { $('#flowSrc').textContent = ''; $('#flowInfo').textContent = 'Volume non disponible pour cet actif avec la source actuelle.'; $('#flowChart').hidden = true; $('#flowLegend').innerHTML = ''; return; }
   $('#flowChart').hidden = false;
+  $('#flowLegend').innerHTML = legendHTML([['#22c55e', 'Actions achetées (barres vers le haut)', 'bar'], ['#ef4444', 'Actions vendues (barres vers le bas)', 'bar']]);
   flowPts = c.map(x => { let b; if (x.buy != null) b = x.buy; else { const r = x.high - x.low; b = r > 0 ? x.volume * (x.close - x.low) / r : x.volume / 2; } return { t: x.time, b, s: Math.max(0, x.volume - b), p: x.close }; });
   $('#flowSrc').textContent = flowReal ? 'données réelles (Binance)' : 'estimation à partir de chaque bougie (pas de données acheteurs/vendeurs gratuites pour les actions)';
   flowChart = LightweightCharts.createChart($('#flowChart'), { ...chartOpts, timeScale: { visible: false }, handleScroll: false, handleScale: false });
@@ -1428,6 +1445,258 @@ function drawFlow(c) {
   });
 }
 
+// ===== Lignes de tendance + reprojection du mouvement sélectionné =====
+function legendHTML(items) {
+  return `<div class="legend">${items.map(([col, lab, kind]) => `<span><i class="lg-${kind || 'line'}" style="--c:${col}"></i>${lab}</span>`).join('')}</div>`;
+}
+const LEG = {
+  candles: ['#22c55e', 'Bougie haussière', 'bar'], candlesD: ['#ef4444', 'Bougie baissière', 'bar'],
+  mm20: ['#f59e0b', 'Moyenne mobile 20 (MM20)'], ema20: ['#f59e0b', 'Moyenne exponentielle 20 (EMA20)'], mm50: ['#3b82f6', 'Moyenne mobile 50 (MM50)'], mm200: ['#8b5cf6', 'Moyenne mobile 200 (MM200)'],
+  boll: ['#8b97ad', 'Bandes de Bollinger', 'dash'], vol: ['#22c55e', 'Volume (vert = séance en hausse, rouge = en baisse)', 'bar'],
+  sup: ['#22c55e', 'Support', 'dot'], res: ['#ef4444', 'Résistance', 'dot'], stop: ['#f59e0b', 'Stop suggéré', 'dot'],
+  rsi: ['#e6ebf5', 'RSI 14 (pointillés : 70 surachat / 30 survente)'],
+};
+function futureTimes(cs, n, crypto) {
+  const L = cs[cs.length - 1].time, out = [];
+  if (typeof L === 'number') { const step = cs.length > 1 ? L - cs[cs.length - 2].time : 3600; for (let i = 1; i <= n; i++) out.push(L + step * i); }
+  else { let d = L; for (let i = 0; i < n; i++) { d = nextBizDay(d, crypto); out.push(d); } }
+  return out;
+}
+function linFit(xs, ys) { const n = xs.length, mx = xs.reduce((a, b) => a + b, 0) / n, my = ys.reduce((a, b) => a + b, 0) / n; let sxy = 0, sxx = 0, syy = 0;
+  xs.forEach((x, i) => { sxy += (x - mx) * (ys[i] - my); sxx += (x - mx) ** 2; syy += (ys[i] - my) ** 2; }); const b = sxx ? sxy / sxx : 0; return { a: my - b * mx, b, r2: syy && sxx ? sxy * sxy / (sxx * syy) : 0 }; }
+function trendLines(cs, i1, i2) {
+  const seg = cs.slice(i1, i2 + 1), n = seg.length, xs = seg.map((_, k) => k);
+  const reg = linFit(xs, seg.map(x => x.close));
+  const res = seg.map((x, k) => x.close - (reg.a + reg.b * k)); const up = Math.max(...seg.map((x, k) => x.high - (reg.a + reg.b * k))), dn = Math.min(...seg.map((x, k) => x.low - (reg.a + reg.b * k)));
+  // support : deux creux (un par moitié), résistance : deux sommets
+  const half = Math.floor(n / 2) || 1, idxMin = (a, b) => { let m = a; for (let k = a; k < b; k++) if (seg[k].low < seg[m].low) m = k; return m; }, idxMax = (a, b) => { let m = a; for (let k = a; k < b; k++) if (seg[k].high > seg[m].high) m = k; return m; };
+  const l1 = idxMin(0, half), l2 = idxMin(half, n), h1 = idxMax(0, half), h2 = idxMax(half, n);
+  const sup = { b: (seg[l2].low - seg[l1].low) / ((l2 - l1) || 1) }; sup.a = seg[l1].low - sup.b * l1;
+  const rsl = { b: (seg[h2].high - seg[h1].high) / ((h2 - h1) || 1) }; rsl.a = seg[h1].high - rsl.b * h1;
+  // ajustement : la ligne de support ne doit pas être traversée par les clôtures (on la descend si besoin), idem résistance
+  const shiftS = Math.min(0, ...seg.map((x, k) => x.close - (sup.a + sup.b * k))); sup.a += shiftS;
+  const shiftR = Math.max(0, ...seg.map((x, k) => x.close - (rsl.a + rsl.b * k))); rsl.a += shiftR;
+  const atr = TA.atr(cs.map(x => x.high), cs.map(x => x.low), cs.map(x => x.close), 14)[i2] || (seg.reduce((s, x) => s + x.high - x.low, 0) / n);
+  const touches = (L, key) => seg.filter((x, k) => Math.abs(x[key] - (L.a + L.b * k)) <= atr * 0.35).length;
+  const last = seg[n - 1].close, at = k => ({ reg: reg.a + reg.b * k, hi: reg.a + reg.b * k + up, lo: reg.a + reg.b * k + dn, sup: sup.a + sup.b * k, res: rsl.a + rsl.b * k });
+  const now = at(n - 1);
+  return { reg, up, dn, sup, rsl, n, atr, last, now, at, tS: touches(sup, 'low'), tR: touches(rsl, 'high'), width: (up - dn) / now.reg * 100, pos: (last - now.lo) / ((now.hi - now.lo) || 1) * 100 };
+}
+function trendHTML(tl, unit, nfut) {
+  const pctBar = tl.reg.b / tl.now.reg * 100, sS = tl.sup.b / tl.now.reg * 100, sR = tl.rsl.b / tl.now.reg * 100;
+  const pts = []; const add = (t, s) => pts.push(`<li class="${t}">${s}</li>`);
+  add(pctBar > 0.05 ? 'pos' : pctBar < -0.05 ? 'neg' : 'neu', `<b>Droite de tendance</b> (régression, bleue) : ${pctBar >= 0 ? '+' : ''}${fmt(pctBar, 2)} % par ${unit.replace(/s$/, '')} en moyenne, régularité R² ${fmt(tl.reg.r2 * 100, 0)} %. ${tl.reg.r2 > 0.7 ? 'Tendance nette et fiable.' : tl.reg.r2 > 0.4 ? 'Tendance présente mais avec des à-coups.' : 'Tendance faible : le marché hésite.'}`);
+  add('neu', `<b>Canal</b> (pointillés gris) : largeur ${fmt(tl.width, 1)} %. Le prix est à ${fmt(Math.max(0, Math.min(100, tl.pos)), 0)} % de la hauteur du canal ${tl.pos > 85 ? '(haut du canal : zone de prise de bénéfices)' : tl.pos < 15 ? '(bas du canal : zone d\'achat si la tendance est haussière)' : '(milieu du canal)'}.`);
+  add(sS >= 0 ? 'pos' : 'neg', `<b>Ligne de support</b> (verte) : ${sS >= 0 ? 'montante' : 'descendante'} (${sS >= 0 ? '+' : ''}${fmt(sS, 2)} %/${unit.replace(/s$/, '')}), touchée ${tl.tS} fois. Niveau actuel : ${fmt(tl.now.sup)}. ${tl.tS >= 3 ? 'Support solide.' : 'Support encore peu testé.'}`);
+  add(sR <= 0 ? 'neg' : 'pos', `<b>Ligne de résistance</b> (rouge) : ${sR >= 0 ? 'montante' : 'descendante'} (${sR >= 0 ? '+' : ''}${fmt(sR, 2)} %/${unit.replace(/s$/, '')}), touchée ${tl.tR} fois. Niveau actuel : ${fmt(tl.now.res)}.`);
+  let fig;
+  const conv = sS - sR;
+  if (Math.abs(conv) < Math.abs(pctBar) * 0.35 + 0.02) fig = ['neu', `Les deux lignes sont presque parallèles : <b>canal ${pctBar > 0.05 ? 'haussier' : pctBar < -0.05 ? 'baissier' : 'horizontal (range)'}</b>. On achète près du support et on allège près de la résistance tant que le canal tient.`];
+  else if (conv > 0 && sS > 0 && sR > 0) fig = ['neg', '<b>Biseau ascendant</b> (lignes montantes qui se rapprochent) : la hausse s\'essouffle, figure souvent baissière à la cassure du support.'];
+  else if (conv > 0 && sS < 0 && sR < 0) fig = ['pos', '<b>Biseau descendant</b> (lignes descendantes qui se rapprochent) : la baisse s\'essouffle, figure souvent haussière à la cassure de la résistance.'];
+  else if (conv > 0) fig = ['neu', '<b>Triangle</b> (les lignes se rejoignent) : compression, un mouvement fort se prépare. La direction sera donnée par la cassure.'];
+  else fig = ['neu', '<b>Élargissement</b> (les lignes s\'écartent) : volatilité croissante, marché nerveux et difficile à trader.'];
+  add(fig[0], fig[1]);
+  if (tl.last > tl.now.res) add('pos', 'Le dernier cours est <b>au-dessus de la résistance</b> : cassure haussière en cours.');
+  else if (tl.last < tl.now.sup) add('neg', 'Le dernier cours est <b>sous le support</b> : cassure baissière en cours.');
+  const proj = tl.at(tl.n - 1 + nfut).reg;
+  add('neu', `<b>Projection</b> (pointillés bleus) : si la tendance continue au même rythme, le prix serait vers <b>${fmt(proj)}</b> dans ${nfut} ${unit} (${sgn((proj / tl.last - 1) * 100)} %). C'est une prolongation mathématique, pas une prévision.`);
+  return `<ul class="points">${pts.join('')}</ul>`;
+}
+function allIndicatorsHTML(cs, i1, i2) {
+  const c = cs.map(x => x.close), h = cs.map(x => x.high), l = cs.map(x => x.low), v = cs.map(x => x.volume || 0), P = c[i2];
+  const r = TA.rsi(c)[i2], m = TA.macd(c), st = TA.stoch(h, l, c), dx = TA.adx(h, l, c), at = TA.atr(h, l, c)[i2], bb = TA.boll(c), s20 = TA.sma(c, 20)[i2], s50 = TA.sma(c, 50)[i2], ob = TA.obv(c, v);
+  const seg = cs.slice(i1, i2 + 1), H = Math.max(...seg.map(x => x.high)), Lw = Math.min(...seg.map(x => x.low)), C = P, piv = (H + Lw + C) / 3;
+  const pb = bb.up[i2] != null ? (P - bb.lo[i2]) / (bb.up[i2] - bb.lo[i2]) * 100 : null;
+  const v20 = v.slice(Math.max(0, i2 - 19), i2 + 1).reduce((s, x) => s + x, 0) / Math.min(20, i2 + 1);
+  const obS = TA.slope(ob.slice(i1, i2 + 1), Math.min(20, i2 - i1 + 1));
+  const row = (k, val, txt, cl = '') => `<tr><td>${k}</td><td class="${cl}"><b>${val}</b></td><td class="small muted">${txt}</td></tr>`;
+  const pats = []; for (let k = i1 + 1; k <= i2; k++) { const p = candlePattern(cs, k); if (p) pats.push(`${fmtT(cs[k].time)} : ${p[1]}`); }
+  return `<table class="tbl2"><tr><th>Indicateur</th><th>Valeur</th><th>Lecture</th></tr>
+    ${r != null ? row('RSI 14', fmt(r, 0), r > 70 ? 'Surachat' : r < 30 ? 'Survente' : r > 50 ? 'Acheteurs dominants' : 'Vendeurs dominants', r > 70 ? 'down' : r < 30 ? 'up' : '') : ''}
+    ${m.hist[i2] != null ? row('MACD', `${fmt(m.line[i2])} / signal ${fmt(m.signal[i2])}`, m.hist[i2] > 0 ? 'Momentum haussier' : 'Momentum baissier', m.hist[i2] > 0 ? 'up' : 'down') : ''}
+    ${st.K[i2] != null ? row('Stochastique', `${fmt(st.K[i2], 0)} / ${fmt(st.D[i2] ?? st.K[i2], 0)}`, st.K[i2] > 80 ? 'Surachat court terme' : st.K[i2] < 20 ? 'Survente court terme' : 'Zone neutre') : ''}
+    ${dx.adx[i2] != null ? row('ADX / +DI / −DI', `${fmt(dx.adx[i2], 0)} / ${fmt(dx.pdi[i2], 0)} / ${fmt(dx.mdi[i2], 0)}`, dx.adx[i2] > 25 ? `Tendance forte ${dx.pdi[i2] > dx.mdi[i2] ? 'haussière' : 'baissière'}` : 'Pas de vraie tendance') : ''}
+    ${at ? row('ATR 14', `${fmt(at)} (${fmt(at / P * 100, 2)} %)`, 'Amplitude moyenne d\'une bougie : stop conseillé à 2 × ATR') : ''}
+    ${pb != null ? row('Bollinger %B', fmt(pb, 0) + ' %', pb > 100 ? 'Au-dessus de la bande haute' : pb < 0 ? 'Sous la bande basse' : 'À l\'intérieur des bandes') : ''}
+    ${s20 ? row('Prix vs MM20 / MM50', `${sgn((P / s20 - 1) * 100)} %${s50 ? ' / ' + sgn((P / s50 - 1) * 100) + ' %' : ''}`, P > s20 ? 'Au-dessus de la moyenne courte' : 'Sous la moyenne courte', P > s20 ? 'up' : 'down') : ''}
+    ${v20 ? row('Volume', `${fmt(v[i2] / v20, 1)}× la moyenne`, obS > 0 ? 'OBV en hausse : l\'argent entre' : 'OBV en baisse : l\'argent sort', obS > 0 ? 'up' : 'down') : ''}
+    ${row('Points pivots', `P ${fmt(piv)}`, `R1 ${fmt(2 * piv - Lw)} · R2 ${fmt(piv + H - Lw)} · S1 ${fmt(2 * piv - H)} · S2 ${fmt(piv - (H - Lw))}`)}
+    </table>${pats.length ? `<p class="small"><b>Figures de bougies repérées :</b> ${pats.slice(-8).join(' · ')}</p>` : ''}`;
+}
+let moveCharts = [];
+function drawMoveChart(cs, i1, i2, tl, mv, crypto) {
+  moveCharts.forEach(c => { try { c.remove(); } catch {} }); moveCharts = [];
+  const ctx = Math.max(3, Math.round((i2 - i1) * 0.15)), a0 = Math.max(0, i1 - ctx), seg = cs.slice(a0, i2 + 1), off = i1 - a0;
+  const nfut = Math.max(3, Math.round((i2 - i1) * 0.3)), fut = futureTimes(cs.slice(0, i2 + 1), nfut, crypto);
+  const ch = LightweightCharts.createChart($('#moveChart'), { ...chartOpts, timeScale: { ...chartOpts.timeScale, timeVisible: typeof cs[0].time === 'number' } });
+  moveCharts.push(ch);
+  const s = ch.addCandlestickSeries(candleStyle); s.setData(ohlc(seg));
+  s.setMarkers([{ time: cs[i1].time, position: 'belowBar', color: '#f59e0b', shape: 'arrowUp', text: 'Début' }, { time: cs[i2].time, position: 'aboveBar', color: '#f59e0b', shape: 'arrowDown', text: 'Fin' }]);
+  const timeAt = k => k <= i2 - i1 ? cs[i1 + k].time : fut[k - (i2 - i1) - 1];
+  const line = (f, col, w, style, from = 0, to = tl.n - 1) => { const d = []; for (let k = from; k <= to; k++) d.push({ time: timeAt(k), value: f(k) }); ch.addLineSeries({ color: col, lineWidth: w, lineStyle: style, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false }).setData(d); };
+  line(k => tl.reg.a + tl.reg.b * k, '#3b82f6', 2, 0);
+  line(k => tl.reg.a + tl.reg.b * k, '#3b82f6', 2, 2, tl.n - 1, tl.n - 1 + nfut);
+  line(k => tl.reg.a + tl.reg.b * k + tl.up, '#8b97ad', 1, 2, 0, tl.n - 1 + nfut); line(k => tl.reg.a + tl.reg.b * k + tl.dn, '#8b97ad', 1, 2, 0, tl.n - 1 + nfut);
+  line(k => tl.sup.a + tl.sup.b * k, '#22c55e', 2, 0, 0, tl.n - 1 + Math.round(nfut / 2)); line(k => tl.rsl.a + tl.rsl.b * k, '#ef4444', 2, 0, 0, tl.n - 1 + Math.round(nfut / 2));
+  const c = cs.map(x => x.close), e20 = TA.ema(c, 20); ch.addLineSeries({ color: '#f59e0b', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(seg.map((x, k) => e20[a0 + k] == null ? null : { time: x.time, value: e20[a0 + k] }).filter(Boolean));
+  mv.fib.forEach((f, j) => s.createPriceLine({ price: f, color: 'rgba(245,158,11,.6)', lineStyle: 1, lineWidth: 1, axisLabelVisible: true, title: ['Fibo 38,2 %', 'Fibo 50 %', 'Fibo 61,8 %'][j] }));
+  ch.timeScale().fitContent();
+}
+
+// ===== Prévisions (style TradingView) + projection long terme =====
+function ltStats(w) { // w : bougies hebdomadaires
+  const c = w.map(x => x.close).filter(x => x > 0), n = c.length; if (n < 30) return null;
+  const lr = []; for (let i = 1; i < n; i++) lr.push(Math.log(c[i] / c[i - 1]));
+  const mean = lr.reduce((a, b) => a + b, 0) / lr.length, sd = Math.sqrt(lr.reduce((a, b) => a + (b - mean) ** 2, 0) / lr.length);
+  const years = (n - 1) / 52, cagr = Math.pow(c[n - 1] / c[0], 1 / years) - 1;
+  let peak = c[0], mdd = 0; c.forEach(x => { peak = Math.max(peak, x); mdd = Math.max(mdd, 1 - x / peak); });
+  // dérive retenue : moitié historique (plafonnée) + moitié rendement de long terme des actions (~7 %/an)
+  const hist = Math.max(-0.3, Math.min(0.35, Math.log(1 + cagr)));
+  const m = 0.5 * hist + 0.5 * Math.log(1.07), s = Math.max(0.12, Math.min(1.3, sd * Math.sqrt(52)));
+  return { m, s, cagr, mdd, years };
+}
+function ltProj(P, st, t) { const sq = st.s * Math.sqrt(t), md = (st.m - st.s * st.s / 2) * t;
+  return { lo: P * Math.exp(md - 1.2816 * sq), mid: P * Math.exp(md), hi: P * Math.exp(md + 1.2816 * sq), pUp: normCdf(md / sq) * 100 }; }
+
+async function renderLongTerm(sym, P, pos) {
+  const el = $('#ltBox'); if (!el) return;
+  try {
+    const w = await getCandles(sym, '1week', 260, 0); if (normSym(sym) !== normSym(selFav)) return;
+    const st = ltStats(w); if (!st) { el.innerHTML = '<p class="muted small">Historique trop court pour une projection long terme.</p>'; return; }
+    const val = pos ? pos.qty : 1000 / P, cur = pos ? pos.cur : '€', base = pos ? pos.pru : P;
+    const rows = [2, 3, 4].map(t => { const p = ltProj(P, st, t), sq = st.s * Math.sqrt(t), md = (st.m - st.s * st.s / 2) * t;
+      const pGain = normCdf((md + Math.log(P / base)) / sq) * 100;
+      return `<tr><td><b>${t} ans</b></td><td class="down">${fmt(p.lo)}<br><small>${sgn((p.lo / P - 1) * 100, 0)} %</small></td><td><b>${fmt(p.mid)}</b><br><small>${sgn((p.mid / P - 1) * 100, 0)} %</small></td>
+        <td class="up">${fmt(p.hi)}<br><small>${sgn((p.hi / P - 1) * 100, 0)} %</small></td><td>${fmt(val * p.lo, 0)} – <b>${fmt(val * p.mid, 0)}</b> – ${fmt(val * p.hi, 0)} ${pos ? cur : '€'}</td><td>${fmt(pGain, 0)} %</td></tr>`; }).join('');
+    const verdict = st.m > Math.log(1.06) ? ['Profil long terme favorable', 'up'] : st.m > Math.log(1.02) ? ['Profil long terme correct', 'warn'] : ['Profil long terme fragile', 'down'];
+    el.innerHTML = `<p><b class="${verdict[1]}">${verdict[0]}</b> <span class="small muted">· historique de ${fmt(st.years, 1)} ans : ${sgn(st.cagr * 100, 1)} %/an en moyenne, volatilité ${fmt(st.s * 100, 0)} %/an, pire baisse ${fmt(-st.mdd * 100, 0)} %.</span></p>
+      <table class="tbl2"><tr><th>Horizon</th><th>Bas (1 chance sur 10)</th><th>Central</th><th>Haut (1 chance sur 10)</th><th>${pos ? 'Valeur de ta position' : 'Pour 1 000 € investis'}</th><th>${pos ? 'Proba. d\'être en gain' : 'Proba. de hausse'}</th></tr>${rows}</table>
+      <p class="muted small">Méthode : moitié de la performance historique (plafonnée) et moitié du rendement moyen de long terme des actions (environ 7 %/an), avec la volatilité réelle du titre. Sur ${fmt(st.years, 1)} ans d'historique, le titre a déjà perdu jusqu'à ${fmt(st.mdd * 100, 0)} % depuis un sommet : en long terme, il faut pouvoir supporter ce type de baisse.</p>`;
+  } catch (e) { el.innerHTML = `<p class="muted small">Projection long terme indisponible : ${esc(mcpErr(e))}</p>`; }
+}
+
+// ---- Prévisions 12 mois (graphique en éventail), avis des analystes, résultats ----
+let fcChart = null;
+async function analystData(sym) {
+  if (!window.WEB || isCrypto(sym) || normSym(sym).includes('@') || !WEB.K().finnhub) return null;
+  const k = 'an_' + normSym(sym), c = ls.get(k); if (c && Date.now() - c.t < 12 * 3600e3) return c.v;
+  const s = encodeURIComponent(normSym(sym));
+  const [rec, earn, pt] = await Promise.all([WEB.fh(`/stock/recommendation?symbol=${s}`).catch(() => []), WEB.fh(`/stock/earnings?symbol=${s}`).catch(() => []), WEB.fh(`/stock/price-target?symbol=${s}`).catch(() => null)]);
+  const v = { rec: Array.isArray(rec) ? rec.slice(0, 4) : [], earn: Array.isArray(earn) ? earn.slice(0, 6).reverse() : [], pt: pt && pt.targetMean ? pt : null };
+  ls.set(k, { t: Date.now(), v }); return v;
+}
+function gaugeSVG(score) { // score -2 (vente forte) .. +2 (achat fort)
+  const ang = Math.PI * (1 - (score + 2) / 4), cx = 110, cy = 100, r = 80, x = cx + r * 0.85 * Math.cos(ang), y = cy - r * 0.85 * Math.sin(ang);
+  const seg = (a0, a1, col) => { const p = a => [cx + r * Math.cos(Math.PI * (1 - a)), cy - r * Math.sin(Math.PI * (1 - a))]; const [x0, y0] = p(a0), [x1, y1] = p(a1); return `<path d="M${x0} ${y0} A${r} ${r} 0 0 1 ${x1} ${y1}" stroke="${col}" stroke-width="16" fill="none"/>`; };
+  return `<svg viewBox="0 0 220 120" class="gauge">${seg(0, .2, '#ef4444')}${seg(.2, .4, '#f97316')}${seg(.4, .6, '#8b97ad')}${seg(.6, .8, '#4ade80')}${seg(.8, 1, '#22c55e')}
+    <line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="var(--text)" stroke-width="3" stroke-linecap="round"/><circle cx="${cx}" cy="${cy}" r="5" fill="var(--text)"/>
+    <text x="22" y="116" class="vt" fill="var(--muted)">Vente</text><text x="170" y="116" class="vt" fill="var(--muted)">Achat</text></svg>`;
+}
+function epsSVG(earn) {
+  const vals = earn.flatMap(e => [e.actual, e.estimate]).filter(v => v != null); if (!vals.length) return '';
+  const mn = Math.min(0, ...vals), mx = Math.max(...vals), W = 320, H = 150, X = i => 30 + i * (W - 50) / Math.max(1, earn.length - 1), Y = v => 15 + (mx - v) / ((mx - mn) || 1) * (H - 40);
+  return `<svg viewBox="0 0 ${W} ${H}" class="eps">${earn.map((e, i) => `${e.estimate != null ? `<circle cx="${X(i)}" cy="${Y(e.estimate)}" r="6" fill="none" stroke="var(--muted)" stroke-width="2"/>` : ''}
+    ${e.actual != null ? `<circle cx="${X(i)}" cy="${Y(e.actual)}" r="5" fill="${e.actual >= (e.estimate ?? e.actual) ? 'var(--up)' : 'var(--down)'}"/>` : ''}
+    <text x="${X(i)}" y="${H - 6}" text-anchor="middle" class="vl" fill="var(--muted)">${esc(String(e.period).slice(2, 7))}</text>`).join('')}</svg>`;
+}
+async function renderForecast(sym, c) {
+  const el = $('#fcBox'); if (!el) return;
+  const P = c[c.length - 1].close;
+  el.innerHTML = `<h3 class="sech">🔮 Prévisions sur 12 mois · ${esc(showSym(sym))}</h3><div class="fc-grid"><div><div id="fcChart" class="chart small2"></div><div id="fcLegend"></div></div><div id="fcSide"><p class="muted small">Chargement…</p></div></div><div id="fcBottom"></div>`;
+  let st = null, an = null;
+  try { const w = await getCandles(sym, '1week', 260, 0); st = ltStats(w); } catch {}
+  try { an = await analystData(sym); } catch {}
+  if (normSym(sym) !== normSym(selFav)) return;
+  if (!st) { const lr = []; for (let i = Math.max(1, c.length - 250); i < c.length; i++) lr.push(Math.log(c[i].close / c[i - 1].close)); const sd = Math.sqrt(lr.reduce((a, b) => a + b * b, 0) / lr.length); st = { m: Math.log(1.07), s: sd * Math.sqrt(252) }; }
+  const p1 = ltProj(P, st, 1), useAn = an && an.pt;
+  const hi = useAn ? an.pt.targetHigh : p1.hi, mid = useAn ? an.pt.targetMean : p1.mid, lo = useAn ? an.pt.targetLow : p1.lo;
+  if (fcChart) { try { fcChart.remove(); } catch {} }
+  fcChart = LightweightCharts.createChart($('#fcChart'), chartOpts);
+  const hist = c.slice(-252); fcChart.addAreaSeries({ lineColor: '#e6ebf5', topColor: 'rgba(230,235,245,.12)', bottomColor: 'rgba(230,235,245,0)', lineWidth: 2, priceLineVisible: false }).setData(hist.map(x => ({ time: x.time, value: x.close })));
+  const t0 = hist[hist.length - 1].time, nd = isCrypto(sym) ? 365 : 252, days = [t0]; for (let i = 1; i <= nd; i++) days.push(nextBizDay(days[i - 1], isCrypto(sym)));
+  const fan = (key, v, col, lab) => { const s = fcChart.addLineSeries({ color: col, lineWidth: 2, lineStyle: 2, priceLineVisible: false, lastValueVisible: true, title: lab });
+    s.setData(days.map((t, i) => ({ time: t, value: i === 0 ? P : useAn ? P + (v - P) * i / nd : ltProj(P, st, i / nd)[key] }))); };
+  fan('hi', hi, '#22c55e', 'Haut'); fan('mid', mid, '#3b82f6', 'Moyen'); fan('lo', lo, '#ef4444', 'Bas');
+  fcChart.timeScale().fitContent();
+  $('#fcLegend').innerHTML = legendHTML([['#e6ebf5', 'Cours sur 1 an'], ['#22c55e', useAn ? 'Objectif le plus haut des analystes' : 'Scénario haut (1 chance sur 10)', 'dash'], ['#3b82f6', useAn ? 'Objectif moyen des analystes' : 'Scénario central', 'dash'], ['#ef4444', useAn ? 'Objectif le plus bas des analystes' : 'Scénario bas (1 chance sur 10)', 'dash']]);
+  const box = (lab, v, col) => `<div class="fcv"><span>${lab}</span><b style="color:${col}">${fmt(v)}</b><small class="${cls(v - P)}">${sgn((v / P - 1) * 100, 1)} %</small></div>`;
+  let side = `<p class="small"><b>${useAn ? `Objectifs de ${an.pt.numberOfAnalysts || ''} analystes` : 'Projection statistique (les objectifs des analystes ne sont pas dans les offres gratuites)'}</b></p>
+    <div class="fcvs">${box('Haut', hi, 'var(--up)')}${box('Moyen', mid, 'var(--accent)')}${box('Bas', lo, 'var(--down)')}</div>`;
+  if (an && an.rec.length) {
+    const r = an.rec[0], tot = r.strongBuy + r.buy + r.hold + r.sell + r.strongSell, sc = tot ? (2 * r.strongBuy + r.buy - r.sell - 2 * r.strongSell) / tot : 0;
+    const lab = sc > 1.2 ? 'Achat fort' : sc > 0.4 ? 'Achat' : sc > -0.4 ? 'Neutre' : sc > -1.2 ? 'Vente' : 'Vente forte';
+    side += `<div class="row wrap" style="gap:14px;align-items:center">${gaugeSVG(sc)}<div><div class="small muted">Avis de ${tot} analystes (${esc(r.period)})</div><b style="font-size:18px" class="${sc > 0.4 ? 'up' : sc < -0.4 ? 'down' : ''}">${lab}</b>
+      <div class="small">Achat fort ${r.strongBuy} · Achat ${r.buy} · Neutre ${r.hold} · Vente ${r.sell} · Vente forte ${r.strongSell}</div></div></div>`;
+  } else if (!isCrypto(sym)) side += `<p class="muted small">${window.WEB ? 'Avis des analystes : ajoute ta clé Finnhub dans Réglages.' : 'Avis des analystes disponibles dans la version web (Finnhub).'}</p>`;
+  $('#fcSide').innerHTML = side;
+  if (an && an.earn.length) $('#fcBottom').innerHTML = `<h4 style="margin:12px 0 4px">Bénéfice par action : prévu ○ / réel ●</h4><div class="row wrap" style="gap:16px;align-items:center">${epsSVG(an.earn)}
+    <div class="small">${an.earn.slice(-4).map(e => `<div>${esc(e.period)} : réel <b>${fmt(e.actual)}</b> / prévu ${fmt(e.estimate)} ${e.surprisePercent != null ? `<span class="${cls(e.surprisePercent)}">(${sgn(e.surprisePercent, 1)} %)</span>` : ''}</div>`).join('')}</div></div>
+    <p class="muted small">● vert : résultat meilleur que prévu · ● rouge : moins bon que prévu.</p>`;
+}
+
+// ===== Actions susceptibles de bouger (actualités + résultats + technique) =====
+async function nextEarnings(sym) {
+  if (isCrypto(sym) || normSym(sym).includes('@')) return null;
+  const k = 'earn_' + normSym(sym), c = ls.get(k); if (c && Date.now() - c.t < 12 * 3600e3) return c.d;
+  let d = null; const today = iso(new Date());
+  try {
+    if (window.WEB) { if (!WEB.K().finnhub) return null; const j = await WEB.fh(`/calendar/earnings?from=${today}&to=${iso(new Date(Date.now() + 100 * 864e5))}&symbol=${encodeURIComponent(normSym(sym))}`);
+      d = ((j && j.earningsCalendar) || []).map(x => x.date).filter(x => x >= today).sort()[0] || null; }
+    else if (MCP && hasFMP) { const r = await MCP.callTool('FMP', 'calendar', { endpoint: 'earnings-company', symbol: normSym(sym), limit: 4 }); let v = r.payload; if (typeof v === 'string') v = JSON.parse(v);
+      d = (Array.isArray(v) ? v : []).map(x => x.date).filter(x => x >= today).sort()[0] || null; }
+  } catch {}
+  ls.set(k, { t: Date.now(), d }); return d;
+}
+let moversBusy = false;
+async function renderMovers(force) {
+  const el = $('#movers'); if (!el || moversBusy) return; moversBusy = true;
+  const syms = [...new Set([...S.favs, ...S.pf.map(p => normSym(p.sym))])].slice(0, 12);
+  el.innerHTML = `<h3 class="sech">🎯 Actions susceptibles de bouger</h3><p class="muted small">Analyse de ${syms.length} actions (favoris + portefeuille)…</p>`;
+  const rows = [];
+  for (const s of syms) {
+    try {
+      const c = await getCandles(s, '1day', 400, 0), a = analyze(c); if (!a) continue;
+      const reasons = []; let score = a.volPct, when = null, dir = 0, amp = a.volPct * Math.sqrt(5);
+      // actualités
+      if (window.WEB && !newsMem[s]) { try { const j = JSON.parse(await td('get_company_news', { ...parseSym(s), outputsize: 10 }, 30 * 60e3, 0)); newsMem[s] = (j.press_releases || []).map(n => ({ title: n.title, body: cleanMd(n.body), source: n.source, date: n.datetime, url: n.url })); } catch {} }
+      const recent = (newsMem[s] || []).filter(n => Date.now() - new Date(n.date) < 4 * 864e5).map(newsImpact);
+      const strong = recent.filter(x => Math.abs(x.s) >= 3);
+      if (strong.length) { const ss = strong.reduce((t, x) => t + x.s, 0); score += 4; dir += 2 * Math.sign(ss); when = when || 'immédiat (jours à venir)'; amp = Math.max(amp, a.volPct * 2.5); reasons.push(`${strong.length} actualité(s) à fort impact (${ss < 0 ? 'négatives' : 'positives'})`); }
+      else if (recent.some(x => x.s !== 0)) { score += 1.5; reasons.push('actualités récentes à impact modéré'); }
+      // résultats
+      const ed = await nextEarnings(s);
+      if (ed) { const days = Math.round((new Date(ed + 'T12:00:00Z') - Date.now()) / 864e5);
+        if (days <= 21) { score += days <= 7 ? 5 : 3; when = `résultats le ${new Date(ed + 'T12:00:00Z').toLocaleDateString('fr-FR')} (dans ${Math.max(0, days)} j)`; amp = Math.max(amp, a.volPct * 2.2, 4); reasons.push('publication de résultats proche'); }
+        else reasons.push(`prochains résultats le ${new Date(ed + 'T12:00:00Z').toLocaleDateString('fr-FR')}`); }
+      // technique
+      const cl = c.map(x => x.close), bb = TA.boll(cl), bw = bb.up.map((u, i) => u != null ? (u - bb.lo[i]) / bb.mid[i] : null).filter(x => x != null), cur = bw[bw.length - 1], rec = bw.slice(-120);
+      if (rec.length > 50 && cur <= Math.min(...rec) * 1.1) { score += 2.5; when = when || 'dans 1 à 3 semaines'; reasons.push('compression des bandes de Bollinger (squeeze)'); }
+      if (a.R != null && (a.R > 75 || a.R < 25)) { score += 1.5; dir += a.R > 75 ? -1 : 1; when = when || 'quelques jours'; reasons.push(a.R > 75 ? 'RSI très suracheté (correction possible)' : 'RSI très survendu (rebond possible)'); }
+      if (a.A != null && a.A > 30) { score += 1; dir += a.score > 0 ? 1 : -1; reasons.push(`tendance forte (ADX ${fmt(a.A, 0)}) qui peut se prolonger`); }
+      if (Math.abs(a.score) >= 40) dir += Math.sign(a.score);
+      rows.push({ s, score, when: when || 'pas d\'échéance particulière', dir, amp, reasons, vol: a.volPct });
+    } catch {}
+    draw(rows.length < syms.length && s !== syms[syms.length - 1]);
+  }
+  draw(false); moversBusy = false;
+  function draw(partial) {
+  rows.sort((a, b) => b.score - a.score);
+  const lvl = sc => sc >= 8 ? ['Élevée', 'down', 100] : sc >= 5 ? ['Moyenne', 'warn', 66] : ['Faible', 'muted', 33];
+  el.innerHTML = `<h3 class="sech">🎯 Actions susceptibles de bouger <button class="ghost small" id="moversRefresh" style="margin-left:auto">↻</button></h3>` + (rows.length ? `<div class="tablewrap"><table class="tbl2"><tr><th>Action</th><th>Probabilité de fort mouvement</th><th>Quand</th><th>Sens probable</th><th>Ampleur estimée</th></tr>${rows.map(r => { const [l, c, w] = lvl(r.score);
+      return `<tr><td>${logo(r.s, 20)}<b>${esc(showSym(r.s))}</b></td><td><div class="pbar"><i style="width:${w}%" class="${c}"></i></div><small class="${c}">${l}</small></td><td>${esc(r.when)}</td>
+      <td class="${r.dir > 0 ? 'up' : r.dir < 0 ? 'down' : 'muted'}">${r.dir > 0 ? '↗ hausse' : r.dir < 0 ? '↘ baisse' : '↕ incertain'}</td><td>± ${fmt(r.amp, 1)} %</td></tr><tr class="why"><td colspan="5" class="small muted">${esc(r.reasons.join(' · ') || 'Volatilité habituelle uniquement')}</td></tr>`; }).join('')}</table></div>
+      <p class="muted small">Basé sur les actualités des 4 derniers jours, les dates de résultats, la compression des bandes de Bollinger, le RSI, l'ADX et la volatilité habituelle (ATR). Ce sont des probabilités, pas des certitudes.</p>` : '<p class="muted">Ajoute des favoris pour voir cette analyse.</p>');
+  if (partial) el.querySelector('.sech').insertAdjacentHTML('afterend', `<p class="muted small">Analyse en cours : ${rows.length}/${syms.length} actions…</p>`);
+  $('#moversRefresh') && ($('#moversRefresh').onclick = () => renderMovers(true));
+  }
+}
+
+let lastAna = null;
+function fixHiddenCharts() { // un graphique créé pendant que la page était cachée a un zoom faux : on le recale
+  try { if (liveChart && liveCandles.length) { const r = liveChart.timeScale().getVisibleLogicalRange(); if (!r || r.to - r.from > 600 || r.from < -50) liveChart.timeScale().setVisibleLogicalRange({ from: liveCandles.length - 120, to: liveCandles.length + 2 }); } } catch {}
+}
+function refreshMyPos() { if (lastAna && $('#myPos') && normSym(lastAna.sym) === normSym(selFav)) renderMyPos(lastAna.sym, lastAna.c, lastAna.a); }
 // ================== Utilitaires ==================
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const ls = {
@@ -1454,7 +1723,7 @@ S.capital ||= 10000; S.alerts ||= []; S.fees ||= { plan: 'standard', comm: 0.25,
 if (!S.btc) { if (!S.favs.includes('BTC/USD')) S.favs.push('BTC/USD'); S.btc = 1; }
 let stateDoc = null, saveT = null;
 function saveState() {
-  S.updatedAt = Date.now(); ls.set('state2', S); if (!stateDoc) return;
+  S.updatedAt = Date.now(); ls.set('state2', S); setTimeout(() => { try { refreshMyPos(); } catch {} }, 0); if (!stateDoc) return;
   clearTimeout(saveT); saveT = setTimeout(() => stateDoc.set(JSON.parse(JSON.stringify(S))).then(() => { $('#pfStore').textContent = 'Sauvegardé dans ton espace privé, sur tous tes appareils.'; }).catch(e => { $('#pfStore').textContent = 'Sauvegarde en ligne impossible (' + ((e && (e.code || e.message)) || 'erreur') + ') : conservé dans ce navigateur.'; }), 800);
 }
 async function initDb() {
@@ -1595,6 +1864,7 @@ document.addEventListener('click', e => { const g = e.target.dataset.goto; if (g
 function show(v) {
   $$('#nav button').forEach(b => b.classList.toggle('active', b.dataset.view === v));
   $$('.view').forEach(s => s.classList.toggle('active', s.id === 'view-' + v));
+  if (v === 'dash') { try { refreshMyPos(); } catch {} setTimeout(fixHiddenCharts, 30); }
   if (v === 'sim') renderSim(); if (v === 'pf') renderPF(true); if (v === 'learn') renderLearn(); window.scrollTo(0, 0);
 }
 
@@ -1647,7 +1917,8 @@ async function loadLive(keepView) {
     $('#liveQuote').innerHTML = `<div class="lq">${logo(sym, 26)}<b>${esc(q.name || nameOf(sym) || sym)}</b> <span class="muted">${esc(showSym(sym))} · ${esc(q.ex || '')}</span></div><div><span class="muted">Prix</span> <b class="lp">${fmt(q.p)} ${esc(q.cur || '')}</b></div>
       <div><span class="muted">Jour</span> <b class="ld ${cls(q.dp)}">${sgn(q.d)} (${sgn(q.dp)} %)</b></div>` +
       (q.hi52 ? `<div><span class="muted">52 sem.</span> <b>${fmt(q.lo52)} – ${fmt(q.hi52)}</b></div>` : '') +
-      (q.open != null ? `<div>${q.open ? '<span class="up">● Marché ouvert</span>' : '<span class="muted">● Marché fermé</span>'}</div>` : '') + '<div class="muted small">EMA20 orange · MM50 bleue</div>';
+      (q.open != null ? `<div>${q.open ? '<span class="up">● Marché ouvert</span>' : '<span class="muted">● Marché fermé</span>'}</div>` : '');
+    $('#liveLegend').innerHTML = legendHTML([LEG.candles, LEG.candlesD, LEG.ema20, LEG.mm50, LEG.vol]);
     $('#liveInfo').textContent = '· maj ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + (live ? '' : ' · démo');
   } catch (e) { $('#liveQuote').innerHTML = `<span class="down">${esc(mcpErr(e))}</span>`; }
   clearTimeout(liveTimer);
@@ -1683,10 +1954,16 @@ function showMove(i1, i2) {
   selActive = true; const pad = Math.max(2, Math.round((i2 - i1) * 0.15));
   liveChart.timeScale().setVisibleLogicalRange({ from: i1 - pad, to: i2 + pad });
   liveSeries.setMarkers([{ time: liveCandles[i1].time, position: 'belowBar', color: '#f59e0b', shape: 'arrowUp', text: 'Début' }, { time: liveCandles[i2].time, position: 'aboveBar', color: '#f59e0b', shape: 'arrowDown', text: 'Fin' }]);
-  const out = $('#moveOut'); out.hidden = false; out.innerHTML = '<h3>Analyse du mouvement sélectionné</h3>' + moveHTML(a, fmtT);
+  const out = $('#moveOut'); out.hidden = false;
+  const tl = trendLines(liveCandles, i1, i2), nfut = Math.max(3, Math.round((i2 - i1) * 0.3));
+  out.innerHTML = '<h3>Analyse du mouvement sélectionné</h3>' + moveHTML(a, fmtT) +
+    '<h3 style="margin-top:18px">📐 Reprojection et lignes de tendance</h3><div id="moveChart" class="chart"></div>' +
+    legendHTML([LEG.candles, LEG.candlesD, ['#3b82f6', 'Droite de tendance (régression)'], ['#3b82f6', 'Prolongement de la tendance', 'dash'], ['#8b97ad', 'Canal de tendance', 'dash'], ['#22c55e', 'Ligne de support'], ['#ef4444', 'Ligne de résistance'], LEG.ema20, ['#f59e0b', 'Niveaux de Fibonacci', 'dot']]) +
+    trendHTML(tl, unitName(), nfut) + '<h3 style="margin-top:18px">🧰 Tous les indicateurs à la fin de la sélection</h3>' + allIndicatorsHTML(liveCandles, i1, i2);
+  drawMoveChart(liveCandles, i1, i2, tl, a, isCrypto(liveSym));
   $('#moveClose').onclick = closeMove; out.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
-function closeMove() { selActive = false; $('#moveOut').hidden = true; liveSeries && liveSeries.setMarkers([]); }
+function closeMove() { selActive = false; $('#moveOut').hidden = true; moveCharts.forEach(c => { try { c.remove(); } catch {} }); moveCharts = []; liveSeries && liveSeries.setMarkers([]); }
 
 $('#capital').value = S.capital;
 $('#capital').onchange = () => { S.capital = Math.max(100, +$('#capital').value || 10000); saveState(); renderAnalysis(); };
@@ -1740,11 +2017,11 @@ async function renderAnalysis() {
     const c = await getCandles(sym, '1day', 400, 1); if (sym !== selFav) return; const a = analyze(c);
     if (!a) { el.innerHTML = '<p class="muted">Historique insuffisant pour analyser ce titre.</p>'; return; }
     el.innerHTML = `<div class="ana-grid"><div><div id="anaChart" class="chart"></div><div id="anaRsi" class="chart small"></div>
-      <p class="small muted">Orange MM20 · Bleu MM50 · Violet MM200 · Pointillés : bandes de Bollinger</p><button class="ghost" id="anaLive">Voir dans le marché en direct ↑</button></div><div>${analysisHTML(a, showSym(sym))}</div></div>`;
+      ${legendHTML([LEG.candles, LEG.candlesD, LEG.mm20, LEG.mm50, LEG.mm200, LEG.boll, LEG.sup, LEG.res, LEG.stop, LEG.rsi])}<button class="ghost" id="anaLive">Voir dans le marché en direct ↑</button></div><div>${analysisHTML(a, showSym(sym))}</div></div>`;
     const r = drawChart($('#anaChart'), $('#anaRsi'), c, anaCharts); anaCharts = [r.ch, r.rc];
     [[a.sup, '#22c55e', 'Support'], [a.res, '#ef4444', 'Résistance'], [a.stop, '#f59e0b', 'Stop']].forEach(([p, col, t]) => r.cs.createPriceLine({ price: p, color: col, lineStyle: 1, lineWidth: 1, title: t }));
     $('#anaLive').onclick = () => { setLive(sym); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-    renderMyPos(sym, c, a); renderAlerts(sym, a);
+    lastAna = { sym, c, a }; renderMyPos(sym, c, a); renderAlerts(sym, a); renderForecast(sym, c);
   } catch (e) { el.innerHTML = `<p class="down">${esc(mcpErr(e))}</p>`; }
 }
 
@@ -2005,6 +2282,7 @@ function drawPF(withChart) {
     if (pfHistChart) { try { pfHistChart.remove(); } catch {} }
     pfHistChart = LightweightCharts.createChart($('#pfHist'), chartOpts);
     pfHistChart.addAreaSeries({ lineColor: '#3b82f6', topColor: 'rgba(59,130,246,.35)', bottomColor: 'rgba(59,130,246,0)' }).setData(data);
+    $('#pfLegend').innerHTML = legendHTML([['#3b82f6', 'Valeur totale du portefeuille en €', 'area']]);
   }
   return tot;
 }
@@ -2033,7 +2311,7 @@ renderFavList(); renderNewsSyms(); renderExplain(); setStatus(); renderAlertBar(
   await loadLive(hasCache);
   setStatus();
   if (live && /Connecteur|Ajoute|Reconnecte|refusé|Autorise/.test($('#liveQuote').textContent)) { live = false; setStatus(); loadLive(); }
-  renderAnalysis(); renderNews(); renderTape(); drawPF();
+  renderAnalysis(); renderNews(); renderTape(); drawPF(); setTimeout(() => renderMovers(), 5000);
   setInterval(() => { if (!document.hidden && live) renderTape(true); }, 300e3);
 })();
 
