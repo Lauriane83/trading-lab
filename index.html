@@ -142,6 +142,11 @@ label.inl{display:flex;margin:0;gap:6px}.acts{white-space:nowrap}.acts button{ma
 tr.why td{border-bottom:1px solid var(--line);padding-top:0}.tbl2 tr:has(+ tr.why) td{border-bottom:0}
 #movers .sech{display:flex;align-items:center}
 
+.mkt{position:absolute;top:6px;left:8px;z-index:4;background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--line);border-radius:8px;padding:4px 10px;font-size:12px;pointer-events:none;max-width:calc(100% - 90px)}
+.cform{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px 12px;margin-bottom:10px}.cform label{margin:0;font-size:12px;color:var(--muted)}.cform input,.cform select{display:block;width:100%;margin-top:3px}
+#cryptoBox h4,#view-calc h4{margin:12px 0 6px;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+.copybox{position:fixed;bottom:70px;left:5%;width:90%;height:140px;z-index:50}
+
 .keys label{display:block;margin:12px 0}.keys input{width:100%;max-width:560px;font-family:ui-monospace,monospace}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 button:disabled{opacity:.6;cursor:wait}
@@ -154,6 +159,7 @@ button:disabled{opacity:.6;cursor:wait}
     <button data-view="dash" class="active">Tableau de bord</button>
     <button data-view="sim">Simulation</button>
     <button data-view="pf">Portefeuille</button>
+    <button data-view="calc">🧮 Calculs</button>
     <button data-view="learn">Formation</button>
     <button data-view="settings">⚙ Réglages</button>
   </nav>
@@ -180,7 +186,7 @@ button:disabled{opacity:.6;cursor:wait}
         </div>
       </div>
       <div id="liveQuote" class="simbar"></div>
-      <div class="chartwrap"><div id="liveChart" class="chart"></div><div id="selLayer" hidden><div id="selBox"></div></div></div>
+      <div class="chartwrap"><div id="mktBadge" class="mkt"></div><div id="liveChart" class="chart"></div><div id="selLayer" hidden><div id="selBox"></div></div></div>
       <div id="liveLegend"></div>
       <div id="flowWrap"><div class="row wrap flowh"><b>📊 Actions achetées / vendues</b><span id="flowSrc" class="muted small"></span></div>
       <div id="flowChart" class="chart flow"></div><div id="flowLegend"></div><p id="flowInfo" class="small"></p></div>
@@ -218,6 +224,7 @@ button:disabled{opacity:.6;cursor:wait}
       <div id="analysis"></div>
       <div class="two favx"><div id="myPos" class="panel"></div><div id="alertBox" class="panel"></div></div>
       <div id="fcBox" class="panel" style="margin-top:16px"></div>
+      <div id="cryptoBox" class="panel" style="margin-top:16px" hidden></div>
     </div>
   </div>
 </section>
@@ -327,6 +334,7 @@ button:disabled{opacity:.6;cursor:wait}
     </div>
   </div>
 </section>
+<section id="view-calc" class="view"><div id="calcBody"></div></section>
 <section id="view-settings" class="view">
   <div class="grid">
     <div class="card span2">
@@ -343,6 +351,7 @@ button:disabled{opacity:.6;cursor:wait}
       <div class="row wrap"><button id="saveKeys">Enregistrer</button><button class="ghost" id="testKeys">Tester les connexions</button></div>
       <ul id="keyTest" class="small" style="margin-top:10px"></ul>
       <p class="muted small">Crypto (Binance, CoinGecko) et taux de change (Frankfurter) : aucune clé nécessaire.</p>
+      <h3 class="sech">État des sources</h3><table class="tbl2" id="srcState"></table>
     </div>
     <div class="card">
       <div class="card-h"><h2>Notifications des alertes</h2></div>
@@ -382,7 +391,10 @@ window.WEB = (() => {
   const K = () => { try { return JSON.parse(localStorage.getItem('tl_keys') || '{}'); } catch { return {}; } };
   const isC = s => String(s || '').includes('/');
   const err = (m, code) => { const e = new Error(m); if (code) e.code = code; return e; };
-  async function getJSON(url) { const r = await fetch(url); const t = await r.text(); if (r.status === 429) throw err('Limite de requêtes atteinte, réessaie dans une minute'); if (r.status === 401 || r.status === 403) throw err('Clé API refusée : vérifie-la dans Réglages (' + new URL(url).host + ')'); try { return JSON.parse(t); } catch { throw err(t.slice(0, 140)); } }
+  const stat = {};
+  const mark = (url, ok, e) => { const h = new URL(url).host; stat[h] = { ok, t: Date.now(), err: ok ? '' : (e && e.message) || 'erreur', n: ((stat[h] && stat[h].n) || 0) + 1 }; };
+  async function getJSON(url) { try { const v = await getJSON0(url); mark(url, true); return v; } catch (e) { mark(url, false, e); throw e; } }
+  async function getJSON0(url) { let r; try { r = await fetch(url); } catch (e) { throw err('Connexion impossible à ' + new URL(url).host + ' (réseau ou blocage du navigateur)'); } const t = await r.text(); if (r.status === 429) throw err('Limite de requêtes atteinte, réessaie dans une minute'); if (r.status === 401 || r.status === 403) throw err('Clé API refusée : vérifie-la dans Réglages (' + new URL(url).host + ')'); try { return JSON.parse(t); } catch { throw err(t.slice(0, 140)); } }
   const day = ms => new Date(ms).toISOString().slice(0, 10), dtUTC = ms => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
   const csv = (h, rows) => h.join(';') + '\n' + rows.map(r => r.join(';')).join('\n');
   const mem = {}; const cached = async (k, ms, f) => { const m = mem[k]; if (m && Date.now() - m.t < ms) return m.v; const v = await f(); mem[k] = { t: Date.now(), v }; return v; };
@@ -433,7 +445,7 @@ window.WEB = (() => {
       const k = K().fmp; if (!k) throw err('pas de clé FMP', 'server_not_connected');
       if (tool === 'crypto') throw err('crypto via Binance', 'tool_error');
       const base = 'https://financialmodelingprep.com/stable/';
-      if (tool === 'chart') return out(await getJSON(`${base}historical-price-eod/full?symbol=${encodeURIComponent(input.symbol)}&from=${input.from_date}&apikey=${encodeURIComponent(k)}`));
+      if (tool === 'chart') { const v = await getJSON(`${base}historical-price-eod/full?symbol=${encodeURIComponent(input.symbol)}&from=${input.from_date}&apikey=${encodeURIComponent(k)}`); if (!Array.isArray(v)) { const m = (v && (v['Error Message'] || v.message)) || JSON.stringify(v).slice(0, 120); stat['financialmodelingprep.com'] = { ok: false, t: Date.now(), err: m }; throw err('FMP : ' + m, 'tool_error'); } return out(v); }
       if (tool === 'quote') { const v = await getJSON(`${base}quote?symbol=${encodeURIComponent(input.symbol)}&apikey=${encodeURIComponent(k)}`); if (!Array.isArray(v)) throw err('FMP', 'tool_error'); return out(v); }
       throw err('outil FMP inconnu', 'tool_error');
     }
@@ -465,7 +477,7 @@ window.WEB = (() => {
     return false;
   };
   async function ipo() { const to = day(Date.now() + 75 * 864e5), from = day(Date.now() - 5 * 864e5); return cached('ipo', 3 * 3600e3, () => fh(`/calendar/ipo?from=${from}&to=${to}`)); }
-  return { K, mcp, usesTD, ipo, fh };
+  return { K, mcp, usesTD, ipo, fh, stat };
 })();
 
 // Chaque leçon : titre, cat, quoi, lire, signaux, piege, astuce
@@ -1692,6 +1704,204 @@ async function renderMovers(force) {
   }
 }
 
+// ===== Horaires d'ouverture / fermeture des marchés =====
+const MARKETS = {
+  US: { tz: 'America/New_York', open: [9, 30], close: [16, 0], name: 'Bourse de New York',
+    hol: ['2026-01-01', '2026-01-19', '2026-02-16', '2026-04-03', '2026-05-25', '2026-06-19', '2026-07-03', '2026-09-07', '2026-11-26', '2026-12-25',
+      '2027-01-01', '2027-01-18', '2027-02-15', '2027-03-26', '2027-05-31', '2027-06-18', '2027-07-05', '2027-09-06', '2027-11-25', '2027-12-24'],
+    early: { '2026-11-27': [13, 0], '2026-12-24': [13, 0], '2027-11-26': [13, 0] } },
+  EU: { tz: 'Europe/Paris', open: [9, 0], close: [17, 30], name: 'Euronext',
+    hol: ['2026-01-01', '2026-04-03', '2026-04-06', '2026-05-01', '2026-12-25', '2026-12-26', '2027-01-01', '2027-03-26', '2027-03-29', '2027-05-01', '2027-12-25', '2027-12-26'],
+    early: { '2026-12-24': [14, 5], '2026-12-31': [14, 5], '2027-12-24': [14, 5], '2027-12-31': [14, 5] } },
+  DE: { tz: 'Europe/Berlin', open: [9, 0], close: [17, 30], name: 'Bourse de Francfort', hol: ['2026-01-01', '2026-04-03', '2026-04-06', '2026-05-01', '2026-12-24', '2026-12-25', '2026-12-31', '2027-01-01', '2027-03-26', '2027-03-29', '2027-12-24', '2027-12-31'], early: {} },
+  UK: { tz: 'Europe/London', open: [8, 0], close: [16, 30], name: 'Bourse de Londres', hol: ['2026-01-01', '2026-04-03', '2026-04-06', '2026-05-04', '2026-05-25', '2026-08-31', '2026-12-25', '2026-12-28', '2027-01-01', '2027-03-26', '2027-03-29', '2027-05-03', '2027-05-31', '2027-08-30', '2027-12-27', '2027-12-28'], early: {} },
+};
+const marketOf = sym => { if (isCrypto(sym)) return null; const m = (normSym(sym).split('@')[1] || ''); return /XPAR|XAMS|XBRU|XLIS|XMIL|XMAD/.test(m) ? MARKETS.EU : /XETR|XFRA/.test(m) ? MARKETS.DE : /XLON/.test(m) ? MARKETS.UK : MARKETS.US; };
+function tzParts(ts, tz) { const p = {}; new Intl.DateTimeFormat('en-GB', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', weekday: 'short', hourCycle: 'h23' }).formatToParts(new Date(ts)).forEach(x => p[x.type] = x.value); return p; }
+function wallToUtc(y, mo, d, h, mi, tz) { // heure locale d'une place → instant UTC
+  let g = Date.UTC(y, mo - 1, d, h, mi); for (let k = 0; k < 2; k++) { const p = tzParts(g, tz); const asUtc = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute); g -= asUtc - Date.UTC(y, mo - 1, d, h, mi); } return g;
+}
+function sessionOn(M, ymd) { // [ouverture, fermeture] en ms UTC, ou null si fermé ce jour
+  const dt = new Date(ymd + 'T12:00:00Z'), wd = dt.getUTCDay(); if (wd === 0 || wd === 6 || M.hol.includes(ymd)) return null;
+  const [y, mo, d] = ymd.split('-').map(Number), cl = M.early[ymd] || M.close;
+  return [wallToUtc(y, mo, d, M.open[0], M.open[1], M.tz), wallToUtc(y, mo, d, cl[0], cl[1], M.tz), !!M.early[ymd]];
+}
+function marketStatus(sym, now = Date.now()) {
+  const M = marketOf(sym); if (!M) return { always: true };
+  const p = tzParts(now, M.tz); let ymd = `${p.year}-${p.month}-${p.day}`;
+  for (let i = 0; i < 12; i++) {
+    const s = sessionOn(M, ymd);
+    if (s && now < s[1]) return now >= s[0] ? { open: true, at: s[1], early: s[2], M } : { open: false, at: s[0], M };
+    const n = new Date(ymd + 'T12:00:00Z'); n.setUTCDate(n.getUTCDate() + 1); ymd = iso(n);
+  }
+  return { open: false, at: null, M };
+}
+function dur(ms) { const m = Math.max(0, Math.round(ms / 60000)), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60), mi = m % 60; return (d ? d + ' j ' : '') + (d || h ? h + ' h ' : '') + (d ? '' : mi + ' min'); }
+function marketBadgeHTML(sym) {
+  const st = marketStatus(sym);
+  if (st.always) return '<span class="up">●</span> Crypto : marché ouvert 24 h/24, 7 j/7';
+  if (!st.at) return '<span class="muted">●</span> Horaires inconnus';
+  const d = new Date(st.at), sameDay = d.toDateString() === new Date().toDateString();
+  const when = (sameDay ? '' : d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'numeric' }) + ' ') + 'à ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return st.open ? `<span class="up">●</span> <b>${st.M.name} ouverte</b> · ferme ${when}${st.early ? ' (séance raccourcie)' : ''} · dans ${dur(st.at - Date.now())}`
+    : `<span class="down">●</span> <b>${st.M.name} fermée</b> · réouvre ${when} · dans ${dur(st.at - Date.now())}`;
+}
+let mbTimer = null;
+function updateMarketBadge() { const el = $('#mktBadge'); if (!el) return; el.innerHTML = marketBadgeHTML(liveSym) + ' <span class="muted small">(heure de ton appareil)</span>'; clearTimeout(mbTimer); mbTimer = setTimeout(updateMarketBadge, 30e3); }
+
+// ===== Calculs de trading (inspiré de TradingCalc) + analyse crypto spot & futures (inspiré de Crypto Spot Futures Analyzer) =====
+const num2 = v => { const x = parseFloat(String(v ?? '').replace(/\s/g, '').replace(',', '.')); return isFinite(x) ? x : NaN; };
+const MMR = 0.005; // marge de maintenance typique (0,5 %)
+const liqPrice = (entry, lev, side) => side === 'long' ? entry * (1 - 1 / lev + MMR) : entry * (1 + 1 / lev - MMR);
+async function copyText(t) { try { await navigator.clipboard.writeText(t); toast('Copié : colle-le dans Claude (les plugins Crypto Analyzer / TradingCalc doivent être activés)'); }
+  catch { const ta = document.createElement('textarea'); ta.value = t; ta.className = 'copybox'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); toast('Copié'); } catch { toast('Sélectionne le texte et copie-le'); } setTimeout(() => ta.remove(), 15000); } }
+
+function calcDefaults() {
+  const sym = liveSym, q = quoteMem[normSym(sym)], c = liveCandles.length ? liveCandles : null, a = c && c.length > 60 ? analyze(c) : null;
+  const P = q?.p || a?.P || 100;
+  return { sym, P, stop: a ? a.stop : P * 0.95, tgt: a && a.res > P ? a.res : P * 1.1, cur: q?.cur || 'USD' };
+}
+function renderCalc() {
+  const el = $('#calcBody'); if (!el) return; const d = calcDefaults();
+  el.innerHTML = `
+  <div class="grid">
+    <div class="card"><div class="card-h"><h2>📏 Taille de position</h2><span class="muted small">${logo(d.sym, 18)}${esc(showSym(d.sym))} pré-rempli</span></div>
+      <div class="cform">
+        <label>Capital (€)<input id="c1cap" inputmode="decimal" value="${S.capital || 10000}"></label>
+        <label>Risque accepté (% du capital)<input id="c1risk" inputmode="decimal" value="1"></label>
+        <label>Prix d'entrée<input id="c1in" inputmode="decimal" value="${d.P.toFixed(2)}"></label>
+        <label>Stop (sortie si perte)<input id="c1stop" inputmode="decimal" value="${d.stop.toFixed(2)}"></label>
+        <label>Objectif<input id="c1tgt" inputmode="decimal" value="${d.tgt.toFixed(2)}"></label>
+        <label>Devise du titre<select id="c1cur"><option ${d.cur === 'USD' ? 'selected' : ''}>USD</option><option ${d.cur === 'EUR' ? 'selected' : ''}>EUR</option></select></label>
+      </div><div id="c1out"></div></div>
+    <div class="card"><div class="card-h"><h2>⚡ Futures crypto : levier et liquidation</h2></div>
+      <div class="cform">
+        <label>Sens<select id="c2side"><option value="long">Long (je parie sur la hausse)</option><option value="short">Short (je parie sur la baisse)</option></select></label>
+        <label>Prix d'entrée<input id="c2in" inputmode="decimal" value="${d.P.toFixed(2)}"></label>
+        <label>Levier (×)<input id="c2lev" inputmode="decimal" value="3"></label>
+        <label>Marge engagée (€)<input id="c2m" inputmode="decimal" value="500"></label>
+        <label>Prix de sortie visé<input id="c2out" inputmode="decimal" value="${d.tgt.toFixed(2)}"></label>
+        <label>Stop<input id="c2stop" inputmode="decimal" value="${d.stop.toFixed(2)}"></label>
+      </div><div id="c2res"></div></div>
+    <div class="card"><div class="card-h"><h2>🪜 Plan d'achats échelonnés (DCA)</h2></div>
+      <div class="cform">
+        <label>Montant total (€)<input id="c3tot" inputmode="decimal" value="1000"></label>
+        <label>Nombre d'achats<input id="c3n" inputmode="decimal" value="4"></label>
+        <label>Écart entre achats (% de baisse)<input id="c3gap" inputmode="decimal" value="5"></label>
+        <label>Premier prix d'achat<input id="c3p" inputmode="decimal" value="${d.P.toFixed(2)}"></label>
+      </div><div id="c3out"></div></div>
+    <div class="card"><div class="card-h"><h2>🛡️ Risque de mon portefeuille</h2><button class="ghost" id="c4go">Calculer</button></div>
+      <div id="c4out"><p class="muted small">VaR (perte probable dans un mauvais jour ou un mauvais mois), volatilité, ratio de Sharpe et pire baisse, calculés sur l'historique réel de tes positions.</p></div></div>
+  </div>
+  <div class="card" style="margin-top:16px"><div class="card-h"><h2>🤖 Aller plus loin avec les plugins Claude</h2></div>
+    <p class="small">Tes plugins <b>Crypto Spot Futures Analyzer</b> et <b>TradingCalc</b> fonctionnent dans Claude, pas dans ce site. Ce bouton prépare une demande avec toutes les données affichées : colle-la dans une conversation Claude où les plugins sont activés (tu peux aussi y joindre une capture d'écran du graphique).</p>
+    <button id="cPrompt">📋 Copier une demande d'analyse pour ${esc(showSym(d.sym))}</button></div>`;
+  const run = () => { calc1(); calc2(); calc3(); };
+  el.querySelectorAll('input,select').forEach(i => i.addEventListener('input', run)); run();
+  $('#c4go').onclick = calc4; $('#cPrompt').onclick = () => copyText(claudePrompt(d.sym));
+}
+function calc1() {
+  const cap = num2($('#c1cap').value), rk = num2($('#c1risk').value) / 100, E = num2($('#c1in').value), St = num2($('#c1stop').value), T = num2($('#c1tgt').value), usd = $('#c1cur').value === 'USD';
+  const fxr = usd ? fx.usdEur : 1, out = $('#c1out'); if (![cap, rk, E, St, T].every(isFinite) || E <= 0) return out.innerHTML = '<p class="warn small">Remplis tous les champs.</p>';
+  const long = St < E, riskU = Math.abs(E - St) * fxr; if (!riskU) return out.innerHTML = '<p class="warn small">Le stop doit être différent du prix d\'entrée.</p>';
+  let qty = cap * rk / riskU, amt = qty * E * fxr, capped = false; if (amt > cap) { qty = cap / (E * fxr); amt = cap; capped = true; }
+  const c = feeCfg(), fee = e => Math.max(c.commMin, e * c.comm / 100) + (usd ? e * c.fxPct / 100 : 0);
+  const feesRT = fee(amt) + fee(qty * T * fxr), loss = qty * riskU + fee(amt) + fee(qty * St * fxr), gain = qty * Math.abs(T - E) * fxr - feesRT, rr = gain / loss;
+  const be = long ? E + feesRT / qty / fxr : E - feesRT / qty / fxr;
+  out.innerHTML = `<table class="tbl2">
+    <tr><td>Nombre d'actions à acheter</td><td><b>${fmt(qty, qty < 10 ? 4 : 2)}</b></td></tr><tr><td>Montant investi</td><td><b>${fmt(amt)} €</b> (${fmt(amt / cap * 100, 1)} % du capital)${capped ? ' <span class="warn small">plafonné à ton capital</span>' : ''}</td></tr>
+    <tr><td>Perte si le stop est touché (frais inclus)</td><td class="down"><b>−${fmt(loss)} €</b></td></tr><tr><td>Gain si l'objectif est atteint (frais inclus)</td><td class="up"><b>+${fmt(gain)} €</b></td></tr>
+    <tr><td>Ratio gain / risque</td><td class="${rr >= 2 ? 'up' : rr >= 1 ? 'warn' : 'down'}"><b>${fmt(rr, 2)} : 1</b> ${rr >= 2 ? '✓ bon' : rr >= 1 ? 'moyen' : '✗ à éviter'}</td></tr>
+    <tr><td>Seuil de rentabilité (frais Revolut inclus)</td><td><b>${fmt(be)}</b> (${sgn((be / E - 1) * 100, 2)} %)</td></tr>
+    <tr><td>Taux de réussite minimum pour être gagnante</td><td><b>${fmt(100 / (1 + rr), 0)} %</b> des trades</td></tr></table>
+    <p class="muted small">Frais selon ton abonnement Revolut (${esc(c.name)}), réglables dans Simulation.</p>`;
+}
+function calc2() {
+  const side = $('#c2side').value, E = num2($('#c2in').value), L = Math.max(1, num2($('#c2lev').value)), M = num2($('#c2m').value), X = num2($('#c2out').value), St = num2($('#c2stop').value), out = $('#c2res');
+  if (![E, L, M, X, St].every(isFinite) || E <= 0) return out.innerHTML = '<p class="warn small">Remplis tous les champs.</p>';
+  const sgnS = side === 'long' ? 1 : -1, pos = M * L, qty = pos / E, liq = liqPrice(E, L, side), pnl = sgnS * (X - E) * qty, pnlS = sgnS * (St - E) * qty, fees = pos * 0.0005 * 2;
+  const stopBeyondLiq = side === 'long' ? St <= liq : St >= liq, dist = Math.abs(E - St) / E, maxLev = Math.max(1, Math.min(10, Math.floor(1 / (dist + MMR + 0.005))));
+  out.innerHTML = `<table class="tbl2">
+    <tr><td>Taille de la position</td><td><b>${fmt(pos)} €</b> (${fmt(qty, 4)} unités)</td></tr>
+    <tr><td>Prix de liquidation (estimé)</td><td class="down"><b>${fmt(liq)}</b> (${sgn((liq / E - 1) * 100, 2)} %)</td></tr>
+    <tr><td>Résultat à l'objectif</td><td class="${cls(pnl)}"><b>${sgn(pnl - fees)} €</b> (${sgn((pnl - fees) / M * 100, 1)} % de la marge)</td></tr>
+    <tr><td>Résultat au stop</td><td class="${cls(pnlS)}"><b>${sgn(pnlS - fees)} €</b></td></tr>
+    <tr><td>Levier maximum conseillé avec ce stop</td><td><b>×${maxLev}</b></td></tr></table>
+    ${stopBeyondLiq ? '<p class="down small"><b>⚠ Ton stop est au-delà du prix de liquidation : tu serais liquidée avant que le stop ne se déclenche. Baisse le levier.</b></p>' : L > maxLev ? `<p class="warn small">⚠ Levier trop élevé pour ce stop : au-delà de ×${maxLev}, la liquidation est trop proche.</p>` : '<p class="up small">✓ Le stop se déclenche avant la liquidation.</p>'}
+    <p class="muted small">Estimation en marge isolée avec 0,5 % de marge de maintenance et 0,05 % de frais par ordre. Les futures sont très risqués : Revolut ne les propose pas aux particuliers en France.</p>`;
+}
+function calc3() {
+  const tot = num2($('#c3tot').value), n = Math.max(1, Math.min(12, Math.round(num2($('#c3n').value)))), g = num2($('#c3gap').value) / 100, P = num2($('#c3p').value), out = $('#c3out');
+  if (![tot, n, g, P].every(isFinite)) return out.innerHTML = '';
+  let q = 0, spent = 0; const rows = [];
+  for (let i = 0; i < n; i++) { const p = P * Math.pow(1 - g, i), m = tot / n; q += m / p; spent += m; rows.push(`<tr><td>Achat ${i + 1}</td><td>${fmt(p)}</td><td>${fmt(m)} €</td><td>${fmt(spent / q)}</td></tr>`); }
+  out.innerHTML = `<table class="tbl2"><tr><th>Ordre</th><th>Prix</th><th>Montant</th><th>Prix moyen après</th></tr>${rows.join('')}</table>
+    <p class="small">Si tous les achats sont exécutés : prix moyen <b>${fmt(spent / q)}</b>, soit ${sgn((spent / q / P - 1) * 100, 1)} % par rapport au premier achat. Il suffit ensuite d'un rebond jusqu'à ce prix pour être à l'équilibre.</p>`;
+}
+async function calc4() {
+  const out = $('#c4out'); if (!S.pf.length) return out.innerHTML = '<p class="muted">Ajoute d\'abord tes positions dans Portefeuille.</p>';
+  out.innerHTML = '<p class="muted small">Chargement des historiques…</p>';
+  const maps = [], weights = [];
+  for (const p of S.pf) { try { const c = await getCandles(p.sym, '1day', 400, 1); const m = new Map(c.map(x => [String(x.time).slice(0, 10), x.close])); maps.push({ m, qty: p.qty, fxr: p.cur === 'USD' ? fx.usdEur : 1 }); } catch {} }
+  if (!maps.length) return out.innerHTML = '<p class="down small">Historiques indisponibles.</p>';
+  const dates = [...maps[0].m.keys()].filter(d => maps.every(x => x.m.has(d))).sort();
+  const val = dates.map(d => maps.reduce((s, x) => s + x.qty * x.m.get(d) * x.fxr, 0)); if (val.length < 30) return out.innerHTML = '<p class="muted small">Pas assez de jours communs entre tes positions.</p>';
+  const r = []; for (let i = 1; i < val.length; i++) r.push(val[i] / val[i - 1] - 1);
+  const sorted = [...r].sort((a, b) => a - b), q5 = sorted[Math.floor(r.length * 0.05)], mean = r.reduce((a, b) => a + b, 0) / r.length, sd = Math.sqrt(r.reduce((a, b) => a + (b - mean) ** 2, 0) / r.length);
+  const V = val[val.length - 1], annR = Math.pow(val[val.length - 1] / val[0], 252 / r.length) - 1, annV = sd * Math.sqrt(252), sharpe = (annR - 0.03) / annV;
+  let pk = val[0], mdd = 0; val.forEach(v => { pk = Math.max(pk, v); mdd = Math.max(mdd, 1 - v / pk); });
+  out.innerHTML = `<table class="tbl2">
+    <tr><td>Valeur actuelle (sur l'historique)</td><td><b>${fmt(V)} €</b></td></tr>
+    <tr><td>VaR 95 % sur 1 jour</td><td class="down"><b>−${fmt(-q5 * V)} €</b> <small>(${fmt(q5 * 100, 2)} %)</small></td></tr>
+    <tr><td>VaR 95 % sur 1 mois (estimée)</td><td class="down"><b>−${fmt(-q5 * Math.sqrt(21) * V)} €</b></td></tr>
+    <tr><td>Volatilité annuelle</td><td><b>${fmt(annV * 100, 1)} %</b></td></tr>
+    <tr><td>Rendement annualisé (historique)</td><td class="${cls(annR)}"><b>${sgn(annR * 100, 1)} %</b></td></tr>
+    <tr><td>Ratio de Sharpe</td><td class="${sharpe > 1 ? 'up' : sharpe > 0 ? 'warn' : 'down'}"><b>${fmt(sharpe, 2)}</b> ${sharpe > 1 ? '(bon)' : sharpe > 0 ? '(moyen)' : '(faible)'}</td></tr>
+    <tr><td>Pire baisse sur la période</td><td class="down"><b>−${fmt(mdd * 100, 1)} %</b></td></tr></table>
+    <p class="muted small">VaR 95 % : dans 95 % des jours, la perte ne dépasse pas ce montant (1 jour sur 20 peut être pire). Sharpe : rendement au-delà d'un placement sans risque (3 %) divisé par la volatilité ; au-dessus de 1, c'est bon. Calculé sur ${r.length} séances communes à tes positions.</p>`;
+}
+function claudePrompt(sym) {
+  const c = liveCandles, a = c.length > 60 ? analyze(c) : null, q = quoteMem[normSym(sym)], pos = posOf(sym);
+  const lines = [`Analyse ${isCrypto(sym) ? 'crypto spot et futures' : 'de trading'} pour ${showSym(sym)} (utilise ${isCrypto(sym) ? 'Crypto Spot Futures Analyzer' : 'TradingCalc'}).`,
+    q ? `Prix actuel : ${q.p} ${q.cur || ''}, variation du jour ${fmt(q.dp)} %.` : '',
+    a ? `Indicateurs (journalier) : score ${a.score} (${a.label}), RSI ${fmt(a.R, 0)}, ADX ${fmt(a.A, 0)}, ATR ${fmt(a.volPct, 2)} %/jour, support ${fmt(a.sup)}, résistance ${fmt(a.res)}, stop suggéré ${fmt(a.stop)}.` : '',
+    pos ? `Ma position : ${pos.qty} à ${fmt(pos.pru)} ${pos.cur} de prix moyen.` : 'Je n\'ai pas de position.',
+    `Capital : ${S.capital || 10000} €, risque max 1 à 2 % par trade, courtier Revolut (${feeCfg().name}).`,
+    isCrypto(sym) ? 'Donne-moi : setup (entrée, stop, objectifs), levier raisonnable et prix de liquidation, rapport rendement/risque, lecture du funding et de l\'open interest, et un plan DCA.' : 'Donne-moi : taille de position exacte, rapport rendement/risque, seuil de rentabilité frais inclus et VaR de la position.'];
+  return lines.filter(Boolean).join('\n');
+}
+
+// ---- Analyse crypto spot & futures (dans l'analyse des favoris) ----
+async function binanceFut(path) { const r = await fetch('https://fapi.binance.com' + path); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }
+async function renderCryptoBox(sym, c, a) {
+  const el = $('#cryptoBox'); if (!el) return; if (!isCrypto(sym)) { el.hidden = true; el.innerHTML = ''; return; }
+  el.hidden = false; const P = a.P, pair = normSym(sym).split('/')[0] + 'USDT';
+  const stopL = a.stop, distL = (P - stopL) / P, maxLev = Math.max(1, Math.min(10, Math.floor(1 / (distL + MMR + 0.005))));
+  const t1 = Math.max(a.res, P + 2 * (P - stopL)), t2 = Math.max(t1 * 1.03, P + 3.5 * (P - stopL));
+  el.innerHTML = `<h3 class="sech">₿ Analyse crypto spot &amp; futures · ${esc(showSym(sym))}</h3>
+    <div class="two"><div>
+      <h4>Setup suggéré (spot)</h4><table class="tbl2"><tr><td>Biais</td><td class="${a.score >= 15 ? 'up' : a.score <= -15 ? 'down' : 'warn'}"><b>${a.label}</b></td></tr>
+      <tr><td>Entrée</td><td>${fmt(Math.max(a.sup, Math.min(P, last(a.series.s20) || P)))} – ${fmt(P)}</td></tr><tr><td>Stop</td><td class="down">${fmt(stopL)} (${sgn(-distL * 100, 1)} %)</td></tr>
+      <tr><td>Objectif 1 / 2</td><td class="up">${fmt(t1)} / ${fmt(t2)}</td></tr><tr><td>Rapport rendement/risque</td><td><b>${fmt((t1 - P) / (P - stopL), 1)} : 1</b></td></tr></table>
+      <h4>Levier et liquidation (long)</h4><table class="tbl2"><tr><th>Levier</th><th>Liquidation</th><th>Avant le stop ?</th></tr>${[2, 3, 5, 10].map(L => { const lq = liqPrice(P, L, 'long'); return `<tr><td>×${L}</td><td>${fmt(lq)} (${sgn((lq / P - 1) * 100, 1)} %)</td><td class="${lq < stopL ? 'up' : 'down'}">${lq < stopL ? '✓ oui' : '✗ liquidée avant'}</td></tr>`; }).join('')}</table>
+      <p class="small">Levier maximum raisonnable avec ce stop : <b>×${maxLev}</b>. ${a.volPct > 4 ? 'Volatilité élevée : rester sous ×3.' : ''}</p>
+    </div><div><h4>Marché des futures (Binance)</h4><div id="futData"><p class="muted small">Chargement…</p></div>
+      <h4>Plan DCA (4 achats tous les −5 %)</h4>${(() => { let q = 0, s = 0; return '<table class="tbl2">' + [0, 1, 2, 3].map(i => { const p = P * Math.pow(0.95, i); q += 250 / p; s += 250; return `<tr><td>${fmt(p)}</td><td>250 €</td><td>moyen ${fmt(s / q)}</td></tr>`; }).join('') + '</table>'; })()}
+      <button class="ghost" id="cbPrompt" style="margin-top:8px">📋 Copier une demande pour Crypto Spot Futures Analyzer</button></div></div>`;
+  $('#cbPrompt').onclick = () => copyText(claudePrompt(sym));
+  try {
+    const [pi, oi, ls] = await Promise.all([binanceFut(`/fapi/v1/premiumIndex?symbol=${pair}`), binanceFut(`/fapi/v1/openInterest?symbol=${pair}`), binanceFut(`/futures/data/globalLongShortAccountRatio?symbol=${pair}&period=1h&limit=1`).catch(() => [])]);
+    const fr = +pi.lastFundingRate * 100, ratio = ls[0] ? +ls[0].longShortRatio : null, longPct = ls[0] ? +ls[0].longAccount * 100 : null;
+    $('#futData').innerHTML = `<table class="tbl2">
+      <tr><td>Taux de financement (funding)</td><td class="${fr > 0.03 ? 'down' : fr < 0 ? 'up' : ''}"><b>${fmt(fr, 4)} %</b> toutes les 8 h</td></tr>
+      <tr><td>Positions ouvertes (open interest)</td><td><b>${fmtVol(+oi.openInterest)}</b> ${esc(pair.replace('USDT', ''))} ≈ ${fmtVol(+oi.openInterest * P)} $</td></tr>
+      ${ratio ? `<tr><td>Comptes long / short</td><td><b>${fmt(longPct, 0)} % long</b> (ratio ${fmt(ratio, 2)})</td></tr>` : ''}
+      <tr><td>Prix futures / spot</td><td>${fmt(+pi.markPrice)} / indice ${fmt(+pi.indexPrice)}</td></tr></table>
+      <p class="small">${fr > 0.03 ? '⚠ Funding élevé : beaucoup d\'acheteurs à levier, risque de purge (chute brutale qui liquide les longs).' : fr < 0 ? 'Funding négatif : les vendeurs à découvert dominent, un rebond peut forcer leurs rachats (short squeeze).' : 'Funding normal : pas d\'excès de levier.'}
+      ${longPct > 70 ? ' Plus de 70 % des comptes sont longs : le marché est très optimiste, souvent un signal contrarien.' : longPct && longPct < 40 ? ' Majorité de comptes short : pessimisme fort, rebond contrarien possible.' : ''}</p>`;
+  } catch (e) { $('#futData').innerHTML = `<p class="muted small">Données futures Binance indisponibles depuis ton navigateur (${esc(e.message)}).</p>`; }
+}
+
 let lastAna = null;
 function fixHiddenCharts() { // un graphique créé pendant que la page était cachée a un zoom faux : on le recale
   try { if (liveChart && liveCandles.length) { const r = liveChart.timeScale().getVisibleLogicalRange(); if (!r || r.to - r.from > 600 || r.from < -50) liveChart.timeScale().setVisibleLogicalRange({ from: liveCandles.length - 120, to: liveCandles.length + 2 }); } } catch {}
@@ -1810,7 +2020,7 @@ async function fmpCandles(sym, size) {
 }
 async function fmpQuote(sym, fresh) {
   const v = await fmp(isCrypto(sym) ? 'crypto' : 'quote', { endpoint: isCrypto(sym) ? 'cryptocurrency-quote' : 'quote', symbol: fmpSym(sym) }, fresh ? 30e3 : 120e3);
-  const x = v[0]; return { p: +x.price, d: +x.change, dp: +x.changePercentage, pc: +x.previousClose, name: x.name, cur: isCrypto(sym) ? normSym(sym).split('/')[1] : 'USD', ex: x.exchange, hi52: +x.yearHigh, lo52: +x.yearLow, vol: +x.volume, src: 'FMP' };
+  const x = v[0]; if (!x || !isFinite(+x.price)) throw new Error('fmp-quote'); return { p: +x.price, d: +x.change, dp: +x.changePercentage, pc: +x.previousClose, name: x.name, cur: isCrypto(sym) ? normSym(sym).split('/')[1] : 'USD', ex: x.exchange, hi52: +x.yearHigh, lo52: +x.yearLow, vol: +x.volume, src: 'FMP' };
 }
 
 function parseCSV(t) {
@@ -1847,7 +2057,7 @@ async function getQuote(sym, fresh, prio = 1) {
   const k = normSym(sym);
   if (quoteMem[k] && !fresh && Date.now() - quoteMem[k].t < 120e3) return quoteMem[k];
   let q;
-  if (live && !normSym(sym).includes('@') && fmpOk() && (tdBusy() || (prio === 0 && fmpCount() < 150)) && !fmpDenied.has('quotequote')) { try { q = await fmpQuote(sym, fresh); } catch {} }
+  if (live && !window.WEB && !normSym(sym).includes('@') && fmpOk() && (tdBusy() || (prio === 0 && fmpCount() < 150)) && !fmpDenied.has('quotequote')) { try { q = await fmpQuote(sym, fresh); } catch {} }
   if (q) {}
   else if (live) { const r = parseCSV(await td('get_quote', parseSym(sym), fresh ? 30e3 : 120e3, prio))[0];
     q = { p: +r.close, d: +r.change, dp: +r.percent_change, pc: +r.previous_close, name: r.name, cur: r.currency || (isCrypto(sym) ? normSym(sym).split('/')[1] : ''), ex: r.exchange, open: r.is_market_open === 'true', hi52: +r.fifty_two_week_high, lo52: +r.fifty_two_week_low, vol: +r.volume, avgVol: +r.average_volume }; }
@@ -1865,6 +2075,7 @@ function show(v) {
   $$('#nav button').forEach(b => b.classList.toggle('active', b.dataset.view === v));
   $$('.view').forEach(s => s.classList.toggle('active', s.id === 'view-' + v));
   if (v === 'dash') { try { refreshMyPos(); } catch {} setTimeout(fixHiddenCharts, 30); }
+  if (v === 'calc') renderCalc();
   if (v === 'sim') renderSim(); if (v === 'pf') renderPF(true); if (v === 'learn') renderLearn(); window.scrollTo(0, 0);
 }
 
@@ -1917,7 +2128,8 @@ async function loadLive(keepView) {
     $('#liveQuote').innerHTML = `<div class="lq">${logo(sym, 26)}<b>${esc(q.name || nameOf(sym) || sym)}</b> <span class="muted">${esc(showSym(sym))} · ${esc(q.ex || '')}</span></div><div><span class="muted">Prix</span> <b class="lp">${fmt(q.p)} ${esc(q.cur || '')}</b></div>
       <div><span class="muted">Jour</span> <b class="ld ${cls(q.dp)}">${sgn(q.d)} (${sgn(q.dp)} %)</b></div>` +
       (q.hi52 ? `<div><span class="muted">52 sem.</span> <b>${fmt(q.lo52)} – ${fmt(q.hi52)}</b></div>` : '') +
-      (q.open != null ? `<div>${q.open ? '<span class="up">● Marché ouvert</span>' : '<span class="muted">● Marché fermé</span>'}</div>` : '');
+      '';
+    updateMarketBadge();
     $('#liveLegend').innerHTML = legendHTML([LEG.candles, LEG.candlesD, LEG.ema20, LEG.mm50, LEG.vol]);
     $('#liveInfo').textContent = '· maj ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + (live ? '' : ' · démo');
   } catch (e) { $('#liveQuote').innerHTML = `<span class="down">${esc(mcpErr(e))}</span>`; }
@@ -2021,7 +2233,7 @@ async function renderAnalysis() {
     const r = drawChart($('#anaChart'), $('#anaRsi'), c, anaCharts); anaCharts = [r.ch, r.rc];
     [[a.sup, '#22c55e', 'Support'], [a.res, '#ef4444', 'Résistance'], [a.stop, '#f59e0b', 'Stop']].forEach(([p, col, t]) => r.cs.createPriceLine({ price: p, color: col, lineStyle: 1, lineWidth: 1, title: t }));
     $('#anaLive').onclick = () => { setLive(sym); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-    lastAna = { sym, c, a }; renderMyPos(sym, c, a); renderAlerts(sym, a); renderForecast(sym, c);
+    lastAna = { sym, c, a }; renderMyPos(sym, c, a); renderAlerts(sym, a); renderForecast(sym, c); renderCryptoBox(sym, c, a);
   } catch (e) { el.innerHTML = `<p class="down">${esc(mcpErr(e))}</p>`; }
 }
 
@@ -2333,8 +2545,18 @@ renderFavList(); renderNewsSyms(); renderExplain(); setStatus(); renderAlertBar(
     const k = WEB.K(), ok = x => x ? '<span class="up">●</span>' : '<span class="muted">○</span>';
     $('#status').innerHTML = msg ? `<span class="warn">${esc(msg)}</span>` :
       (!k.finnhub && !k.twelve) ? '<button class="warn ghost" data-goto="settings" style="padding:4px 10px">⚠ Ajoute tes clés API (Réglages)</button>' :
-      `${ok(k.finnhub)} Finnhub ${ok(k.twelve)} Twelve Data ${ok(k.fmp)} FMP <span class="muted">· crypto Binance</span>`;
+      `${src('finnhub.io', k.finnhub, 'Finnhub')} ${src('api.twelvedata.com', k.twelve, 'Twelve Data')} ${src('financialmodelingprep.com', k.fmp, 'FMP', ` ${fmpCount()}/250`)} <span class="muted">· crypto Binance</span>`;
+    try { renderSrcState(); } catch {}
   };
+  function src(host, key, name, extra = '') { const s = WEB.stat[host];
+    if (!key) return `<span class="muted" title="Pas de clé">○ ${name}</span>`;
+    if (s && !s.ok) return `<span class="warn" title="${esc(s.err)}">⚠ ${name}</span>`;
+    return `<span title="${s ? 'Dernière réponse ' + new Date(s.t).toLocaleTimeString('fr-FR') : 'Pas encore utilisé'}"><span class="up">●</span> ${name}${s ? extra : ''}</span>`; }
+  window.renderSrcState = () => { const el = $('#srcState'); if (!el) return; const k = WEB.K();
+    const rows = [['finnhub.io', 'Finnhub', k.finnhub, 'cours, actualités, IPO, analystes'], ['api.twelvedata.com', 'Twelve Data', k.twelve, 'historiques et intraday'], ['financialmodelingprep.com', 'FMP', k.fmp, 'historiques journaliers (en priorité), ' + fmpCount() + '/250 requêtes aujourd\'hui'], ['data-api.binance.vision', 'Binance', true, 'cryptos'], ['fapi.binance.com', 'Binance Futures', true, 'funding, open interest'], ['api.frankfurter.dev', 'Frankfurter', true, 'taux de change']];
+    el.innerHTML = rows.map(([h, n, key, use]) => { const s = WEB.stat[h]; const st = !key ? '<span class="muted">○ pas de clé</span>' : !s ? '<span class="muted">pas encore utilisé</span>' : s.ok ? `<span class="up">● OK</span> <small class="muted">${new Date(s.t).toLocaleTimeString('fr-FR')}</small>` : `<span class="down">⚠ ${esc(s.err)}</span>`;
+      return `<tr><td><b>${n}</b><br><small class="muted">${use}</small></td><td>${st}</td></tr>`; }).join(''); };
+  setInterval(() => { if ($('#view-settings').classList.contains('active')) renderSrcState(); setStatus(); }, 15e3);
   // Notifications du navigateur pour les alertes
   const beep0 = beep;
   beep = function () { beep0();
