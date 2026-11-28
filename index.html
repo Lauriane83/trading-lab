@@ -147,6 +147,8 @@ tr.why td{border-bottom:1px solid var(--line);padding-top:0}.tbl2 tr:has(+ tr.wh
 #cryptoBox h4,#view-calc h4{margin:12px 0 6px;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
 .copybox{position:fixed;bottom:70px;left:5%;width:90%;height:140px;z-index:50}
 
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}.seg button{background:var(--panel2);color:var(--muted);border-radius:0;padding:6px 10px}.seg button.on{background:var(--accent);color:#fff}
+.tvbox{height:560px;border-radius:10px;overflow:hidden}.tvh{margin:4px 0 6px;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
 .keys label{display:block;margin:12px 0}.keys input{width:100%;max-width:560px;font-family:ui-monospace,monospace}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 button:disabled{opacity:.6;cursor:wait}
@@ -352,6 +354,12 @@ button:disabled{opacity:.6;cursor:wait}
       <ul id="keyTest" class="small" style="margin-top:10px"></ul>
       <p class="muted small">Crypto (Binance, CoinGecko) et taux de change (Frankfurter) : aucune clé nécessaire.</p>
       <h3 class="sech">État des sources</h3><table class="tbl2" id="srcState"></table>
+    </div>
+    <div class="card span2">
+      <div class="card-h"><h2>📺 TradingView (abonnement Essentiel)</h2></div>
+      <p class="small">Le site affiche les modules officiels TradingView : graphique complet (bouton « TradingView » au-dessus du marché en direct, actions européennes comprises), avis technique, données fondamentales, actualités, carte du marché, calendrier économique et screener (onglet 🌍 Marchés). Ces modules sont gratuits et n'utilisent pas ton abonnement.</p>
+      <p class="small">Ton abonnement Essentiel s'applique quand tu ouvres un lien « ↗ Mon TradingView » : tu es alors dans ton compte, avec tes 20 alertes (notifications sur ton téléphone, même site fermé), 5 indicateurs par graphique, 2 graphiques par onglet, sans publicité et avec tes mises en page sauvegardées. TradingView ne permet pas à un site extérieur de lire ces données.</p>
+      <p class="small"><a href="https://fr.tradingview.com/chart/" target="_blank" rel="noopener">Ouvrir mon TradingView ↗</a></p>
     </div>
     <div class="card">
       <div class="card-h"><h2>Notifications des alertes</h2></div>
@@ -2609,6 +2617,108 @@ renderFavList(); renderNewsSyms(); renderExplain(); setStatus(); renderAlertBar(
   // Cours plus fréquents avec Finnhub (60 requêtes/min)
   setInterval(() => { if (!document.hidden && WEB.K().finnhub) renderTape(true); }, 90e3);
   if (!WEB.K().finnhub && !WEB.K().twelve) setTimeout(() => show('settings'), 300);
+})();
+
+// ===== Intégration TradingView (modules officiels + liens vers ton compte) — version web uniquement =====
+(() => {
+  const TVBASE = 'https://fr.tradingview.com';
+  function tvEmbed(el, script, cfg) {
+    el.innerHTML = ''; const w = document.createElement('div'); w.className = 'tradingview-widget-container'; w.style.height = '100%'; w.style.width = '100%';
+    const i = document.createElement('div'); i.className = 'tradingview-widget-container__widget'; i.style.height = '100%'; w.appendChild(i);
+    const s = document.createElement('script'); s.src = 'https://s3.tradingview.com/external-embedding/' + script; s.async = true; s.textContent = JSON.stringify(cfg);
+    s.onerror = () => { el.innerHTML = '<p class="muted small">Le module TradingView n\'a pas pu se charger (connexion ou bloqueur de publicité).</p>'; };
+    w.appendChild(s); el.appendChild(w);
+  }
+  // Symbole au format TradingView
+  window.tvSym = sym => {
+    const k = normSym(sym);
+    if (isCrypto(k)) { const [b, q] = k.split('/'); return 'BINANCE:' + b + (q === 'USD' ? 'USDT' : q); }
+    const [s, mic] = k.split('@');
+    if (mic) return ({ XPAR: 'EURONEXT', XAMS: 'EURONEXT', XBRU: 'EURONEXT', XLIS: 'EURONEXT', XETR: 'XETR', XFRA: 'FWB', XLON: 'LSE', XMIL: 'MIL', XMAD: 'BME' }[mic] || mic) + ':' + s;
+    const ex = ((quoteMem[k] && quoteMem[k].ex) || '').toUpperCase();
+    return (ex.includes('NASDAQ') ? 'NASDAQ:' : ex.includes('NEW YORK') || ex === 'NYSE' ? 'NYSE:' : ex.includes('AMEX') || ex.includes('ARCA') ? 'AMEX:' : '') + s.replace('.', '_');
+  };
+  const tvChartUrl = sym => `${TVBASE}/chart/?symbol=${encodeURIComponent(tvSym(sym))}`;
+  const tvPageUrl = (sym, sub = '') => { const t = tvSym(sym); return `${TVBASE}/symbols/${t.includes(':') ? t.replace(':', '-') : t}/${sub}`; };
+  const base = { locale: 'fr', colorTheme: 'dark', isTransparent: true };
+
+  // ---- 1. Marché en direct : bascule Trading Lab / TradingView ----
+  let tvMode = (() => { try { return localStorage.getItem('tl_tvmode') === '1'; } catch { return false; } })(), tvLiveKey = '';
+  const IV = { '5min': '5', '15min': '15', '1h': '60', '1day': 'D', '1week': 'W' };
+  const head = $('#liveInt').parentElement;
+  head.insertAdjacentHTML('beforeend', `<div class="seg" id="chartSrc"><button data-m="0">Trading Lab</button><button data-m="1">TradingView</button></div>
+    <a class="btnlike ghost" id="tvOpen" target="_blank" rel="noopener" title="Ouvre ce graphique dans ton compte TradingView (alertes, mises en page, replay)">↗ Mon TradingView</a>`);
+  $('#liveChart').closest('.chartwrap').insertAdjacentHTML('afterend', '<div id="tvLive" class="tvbox" hidden></div>');
+  function applyMode() {
+    $$('#chartSrc button').forEach(b => b.classList.toggle('on', (b.dataset.m === '1') === tvMode));
+    ['.chartwrap', '#liveLegend', '#flowWrap', '#liveHint', '#selMode', '#zoomReset'].forEach(q => { const e = $(q); if (e) e.hidden = tvMode; });
+    $('#tvLive').hidden = !tvMode; if (tvMode) renderTvLive(true);
+  }
+  function renderTvLive(force) {
+    $('#tvOpen').href = tvChartUrl(liveSym);
+    if (!tvMode) return; const key = liveSym + $('#liveInt').value; if (!force && key === tvLiveKey) return; tvLiveKey = key;
+    tvEmbed($('#tvLive'), 'embed-widget-advanced-chart.js', { ...base, isTransparent: false, autosize: true, symbol: tvSym(liveSym), interval: IV[$('#liveInt').value] || 'D', timezone: 'Europe/Paris', style: '1',
+      allow_symbol_change: true, withdateranges: true, hide_side_toolbar: false, details: true, calendar: false, studies: ['STD;RSI', 'STD;MACD'], support_host: 'https://www.tradingview.com' });
+  }
+  $('#chartSrc').addEventListener('click', e => { const m = e.target.dataset.m; if (m == null) return; tvMode = m === '1'; try { localStorage.setItem('tl_tvmode', tvMode ? '1' : '0'); } catch {} applyMode(); });
+  const ll = loadLive; loadLive = async function (k) { const r = await ll(k); try { renderTvLive(false); } catch {} return r; };
+  applyMode(); $('#tvOpen').href = tvChartUrl(liveSym);
+
+  // ---- 2. Analyse des favoris : avis technique TradingView, fondamentaux, liens ----
+  $('#fcBox').insertAdjacentHTML('afterend', `<div id="tvFav" class="panel" style="margin-top:16px"></div>`);
+  let tvFavKey = '';
+  function renderTvFav() {
+    const sym = selFav, el = $('#tvFav'); if (!sym || !el) return; if (sym === tvFavKey) return; tvFavKey = sym;
+    el.innerHTML = `<h3 class="sech">📺 TradingView · ${logo(sym, 18)}${esc(showSym(sym))}</h3>
+      <div class="row wrap" style="margin-bottom:10px"><a class="btnlike ghost" target="_blank" rel="noopener" href="${tvChartUrl(sym)}">↗ Graphique dans mon TradingView</a>
+        ${isCrypto(sym) ? '' : `<a class="btnlike ghost" target="_blank" rel="noopener" href="${tvPageUrl(sym, 'forecast/')}">🎯 Objectifs des analystes</a><a class="btnlike ghost" target="_blank" rel="noopener" href="${tvPageUrl(sym, 'financials-overview/')}">📊 Finances de l'entreprise</a>`}
+        <a class="btnlike ghost" target="_blank" rel="noopener" href="${tvPageUrl(sym, 'technicals/')}">🧭 Analyse technique complète</a></div>
+      <div class="two"><div><h4 class="tvh">Avis technique TradingView (oscillateurs + moyennes mobiles)</h4><div id="tvTech" style="height:430px"></div></div>
+      <div><h4 class="tvh">${isCrypto(sym) ? 'Informations' : 'Données fondamentales'}</h4><div id="tvFund" style="height:430px"></div></div></div>
+      <p class="muted small">Modules gratuits de TradingView. Ton abonnement Essentiel s'applique quand tu ouvres les liens ci-dessus dans ton compte (alertes, 5 indicateurs par graphique, mises en page sauvegardées).</p>`;
+    tvEmbed($('#tvTech'), 'embed-widget-technical-analysis.js', { ...base, interval: '1D', width: '100%', height: '100%', symbol: tvSym(sym), showIntervalTabs: true, displayMode: 'single' });
+    if (isCrypto(sym)) tvEmbed($('#tvFund'), 'embed-widget-symbol-info.js', { ...base, symbol: tvSym(sym), width: '100%' });
+    else tvEmbed($('#tvFund'), 'embed-widget-financials.js', { ...base, symbol: tvSym(sym), displayMode: 'regular', width: '100%', height: '100%' });
+  }
+  const ra = renderAnalysis; renderAnalysis = async function () { const r = await ra(); try { renderTvFav(); } catch {} return r; };
+
+  // ---- 3. Actualités : onglet TradingView ----
+  $('#newsTabs').insertAdjacentHTML('beforeend', '<button data-t="tv">TradingView</button>');
+  const rn = renderNews; renderNews = async function () {
+    if (newsTab !== 'tv') return rn();
+    const el = $('#news'); el.innerHTML = '<div id="tvNews" style="height:520px"></div>';
+    tvEmbed($('#tvNews'), 'embed-widget-timeline.js', { ...base, displayMode: 'regular', feedMode: 'symbol', symbol: tvSym(newsSym), width: '100%', height: '100%' });
+  };
+
+  // ---- 4. Nouvel onglet Marchés : cartes thermiques, calendrier économique, screener ----
+  $('#nav').querySelector('[data-view="learn"]').insertAdjacentHTML('beforebegin', '<button data-view="markets">🌍 Marchés</button>');
+  document.querySelector('main').insertAdjacentHTML('beforeend', `<section id="view-markets" class="view"><div class="grid">
+    <div class="card span2"><div class="card-h"><h2>Carte du marché américain (S&amp;P 500)</h2><span class="muted small">Taille = capitalisation · couleur = variation du jour</span></div><div id="tvHeat" style="height:520px"></div></div>
+    <div class="card"><div class="card-h"><h2>📅 Calendrier économique</h2><span class="muted small">Annonces qui font bouger les marchés (taux, inflation, emploi)</span></div><div id="tvCal" style="height:560px"></div></div>
+    <div class="card"><div class="card-h"><h2>₿ Carte des cryptos</h2></div><div id="tvCrypto" style="height:560px"></div></div>
+    <div class="card span2"><div class="card-h"><h2>🔎 Screener</h2><div class="seg" id="scrMkt"><button data-m="america" class="on">États-Unis</button><button data-m="france">France</button><button data-m="crypto">Crypto</button></div></div><div id="tvScr" style="height:560px"></div></div>
+  </div></section>`);
+  let mktDone = false;
+  function renderMarkets() {
+    if (mktDone) return; mktDone = true;
+    tvEmbed($('#tvHeat'), 'embed-widget-stock-heatmap.js', { ...base, dataSource: 'SPX500', blockSize: 'market_cap_basic', blockColor: 'change', grouping: 'sector', hasTopBar: true, isZoomEnabled: true, hasSymbolTooltip: true, width: '100%', height: '100%' });
+    tvEmbed($('#tvCal'), 'embed-widget-events.js', { ...base, width: '100%', height: '100%', importanceFilter: '0,1', countryFilter: 'us,eu,fr,de,gb,cn' });
+    tvEmbed($('#tvCrypto'), 'embed-widget-crypto-coins-heatmap.js', { ...base, dataSource: 'Crypto', blockSize: 'market_cap_calc', blockColor: 'change', hasTopBar: false, isZoomEnabled: true, hasSymbolTooltip: true, width: '100%', height: '100%' });
+    renderScreener('america');
+  }
+  function renderScreener(m) {
+    $$('#scrMkt button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+    tvEmbed($('#tvScr'), m === 'crypto' ? 'embed-widget-crypto-mkt-screener.js' : 'embed-widget-screener.js', m === 'crypto'
+      ? { ...base, width: '100%', height: '100%', defaultColumn: 'overview', screener_type: 'crypto_mkt', displayCurrency: 'USD' }
+      : { ...base, width: '100%', height: '100%', defaultColumn: 'overview', defaultScreen: 'most_capitalized', market: m, showToolbar: true });
+  }
+  $('#scrMkt').addEventListener('click', e => { if (e.target.dataset.m) renderScreener(e.target.dataset.m); });
+  const sh = show; show = function (v) { sh(v); if (v === 'markets') renderMarkets(); };
+  $('#nav').addEventListener('click', e => { if (e.target.dataset.view === 'markets') renderMarkets(); });
+
+  // ---- 5. Alertes : rappel de créer aussi l'alerte dans TradingView ----
+  const rAl = renderAlerts; renderAlerts = function (sym, a) { rAl(sym, a); const el = $('#alertBox'); if (!el) return;
+    el.insertAdjacentHTML('beforeend', `<p class="small">📱 Pour être prévenue même site fermé, crée aussi l'alerte dans ton compte TradingView (20 alertes avec Essentiel) : <a target="_blank" rel="noopener" href="${tvChartUrl(sym)}">ouvrir ${esc(showSym(sym))} dans TradingView ↗</a>, puis clic droit sur le prix → « Ajouter une alerte ».</p>`); };
 })();
 
 </script>
