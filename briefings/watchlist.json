@@ -1,5 +1,50 @@
 {
   "note": "Actions suivies par les briefings automatiques de Claude. Demande à Claude de mettre cette liste à jour quand tu changes tes favoris.",
-  "favoris": ["AAPL", "MSFT", "NVDA", "TSLA", "AMZN", "BTC/USD"],
-  "univers_5min": ["TSLA", "NVDA", "AMD", "AAPL", "META", "AMZN", "MSFT", "GOOGL", "NFLX", "PLTR", "COIN", "MSTR", "SMCI", "AVGO", "MU", "INTC", "SOFI", "HOOD", "RIVN", "UBER", "BA", "MARA", "SPY", "QQQ"]
+  "favoris": [
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "TSLA",
+    "AMZN",
+    "BTC/USD"
+  ],
+  "univers_5min": [
+    "TSLA",
+    "NVDA",
+    "AMD",
+    "AAPL",
+    "META",
+    "AMZN",
+    "MSFT",
+    "GOOGL",
+    "NFLX",
+    "PLTR",
+    "COIN",
+    "MSTR",
+    "SMCI",
+    "AVGO",
+    "MU",
+    "INTC",
+    "SOFI",
+    "HOOD",
+    "RIVN",
+    "UBER",
+    "BA",
+    "MARA",
+    "SPY",
+    "QQQ"
+  ],
+  "macro": [
+    "XAU/USD",
+    "XAG/USD",
+    "USO",
+    "EUR/USD",
+    "GBP/USD",
+    "USD/JPY",
+    "USD/CHF",
+    "AUD/USD",
+    "USD/CAD",
+    "UUP"
+  ],
+  "note_macro": "Toujours surveillés : or, argent, pétrole (via le fonds USO, le WTI direct est payant), principales paires de devises et indice dollar (via UUP)."
 }
